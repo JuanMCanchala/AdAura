@@ -174,7 +174,9 @@ function Card({
   onOpen: () => void;
 }) {
   const { agent, creative, index } = entry;
-  const image = creative.imageRef ?? productImage;
+  // The agent's own artwork first: that is what differs per strategy. The uploaded product
+  // photo is the fallback, and looks the same on every card by design.
+  const image = creative.visual ?? creative.imageRef ?? productImage;
   const paused = agent.adCampaignStatus === "paused";
   const dead = agent.status === "dead";
 
@@ -204,7 +206,8 @@ function Card({
       >
         <strong>{agent.label}</strong>
         <span style={{ color: "var(--ink-faint)", fontSize: 12 }}>
-          {agent.genome.tone} · {String(agent.genome.audience).replace(/_/g, " ")}
+          {creative.mood ?? agent.genome.tone} ·{" "}
+          {String(agent.genome.audience).replace(/_/g, " ")}
         </span>
         <span
           style={{
@@ -303,7 +306,7 @@ function Detail({
   onClose: () => void;
 }) {
   const { agent, creative, index } = entry;
-  const image = creative.imageRef ?? productImage;
+  const image = creative.visual ?? creative.imageRef ?? productImage;
 
   return (
     <div

@@ -2,6 +2,7 @@ import { selectedProvider, selectedProviderName } from "./ai";
 import type { CreativeRequest, ProductImage } from "./ai/types";
 import type { Genome } from "./genome";
 import type { ProductSpec } from "./market";
+import { renderCreativeSvg, visualFor } from "./ai/visual";
 import type { Creative, Voice } from "./types";
 
 /**
@@ -92,6 +93,7 @@ export function templateCreative(
   const line = hook[genome.tone] ?? `${product.name}.`;
   const cta = close[genome.cta] ?? "Buy it now.";
 
+  const concept = visualFor(genome);
   return {
     headline: line,
     body: detail,
@@ -101,6 +103,8 @@ export function templateCreative(
     source: "template",
     tick,
     adCampaignId,
+    visual: renderCreativeSvg(concept, line, product.name),
+    mood: concept.mood,
   };
 }
 
@@ -155,6 +159,12 @@ export async function generateCreatives(
             source: "llm",
             tick,
             adCampaignId: campaignOf(a.id),
+            visual: renderCreativeSvg(
+              visualFor(a.genome),
+              p.headline,
+              req.product.name,
+            ),
+            mood: visualFor(a.genome).mood,
           }
         : templateCreative(
             a.genome,

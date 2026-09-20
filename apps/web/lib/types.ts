@@ -50,6 +50,16 @@ export type Creative = {
    * campaigns, and a publication belongs to the one that was running when it was written.
    */
   adCampaignId: string | null;
+  /**
+   * The ad's own artwork, as an inline SVG data URL derived from the genome.
+   *
+   * Separate from `imageRef`, which is the product photo the user uploaded. A card shows
+   * the photo when there is one and this when there is not — but either way the styling
+   * differs per agent, which is what makes two strategies visibly different side by side.
+   */
+  visual: string | null;
+  /** One word for the look, so a juror can read the strategy off the card. */
+  mood: string | null;
 };
 
 /** How an agent sounds. Derived from its genome so the voice matches the strategy. */

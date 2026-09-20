@@ -43,6 +43,8 @@ export type AgentView = {
     source: "llm" | "template";
     tick: number;
     adCampaignId: string | null;
+    visual: string | null;
+    mood: string | null;
   }>;
   txs: Array<{
     kind: string;
@@ -139,6 +141,8 @@ export function toView(campaign: Campaign): CampaignView {
         source: c.source,
         tick: c.tick,
         adCampaignId: c.adCampaignId,
+        visual: c.visual,
+        mood: c.mood,
       })),
       isChampion: champion?.id === a.id && profitOf(a) > 0,
       txs: a.txs.map((t) => ({

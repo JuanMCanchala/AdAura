@@ -95,3 +95,79 @@ describe("generated creatives map to the right agent and campaign", () => {
     expect([...creatives.keys()].sort()).toEqual(["agent_001", "agent_002"]);
   });
 });
+
+describe("a newborn agent publishes its own ad", () => {
+  it("does not inherit the parent's creative, and writes one from its own genome", async () => {
+    const { createCampaign, tick } = await import("./engine");
+    const { createAdPlatform } = await import("./ads/index");
+    const { resetAgentCounter } = await import("./evolution");
+    const { mulberry32 } = await import("./rng");
+
+    resetAgentCounter();
+    const { campaign, market } = createCampaign({
+      product: PRODUCT,
+      budgetUsd: 60_000,
+      perAgentUsd: 2_100,
+      epochCapUsd: 175,
+      populationSize: 6,
+      seed: 999,
+      evolution: { ticksPerGeneration: 3, maxPopulation: 10, minPopulation: 3 },
+    });
+    const rng = mulberry32(campaign.seed ^ 0x5eed);
+    const hooks = {
+      adPlatform: createAdPlatform(market, campaign.seed),
+      originUrl: "http://demo.test",
+    };
+    // Far enough for a generation boundary, so children actually exist.
+    for (let i = 0; i < 9; i++) await tick(campaign, market, rng, hooks);
+
+    const children = campaign.agents.filter((a) => a.parentId !== null);
+    expect(children.length).toBeGreaterThan(0);
+
+    for (const child of children) {
+      // Every child arrives with a publication of its own.
+      expect(child.creative).not.toBeNull();
+      expect(child.creatives.length).toBeGreaterThan(0);
+      expect(child.creative?.visual).toBeTruthy();
+
+      const parent = campaign.agents.find((a) => a.id === child.parentId);
+      // A mutated genome must yield different copy, or evolution is invisible on screen.
+      if (parent?.creative && child.mutatedGenes.length > 0) {
+        const changedTone = child.genome.tone !== parent.genome.tone;
+        if (changedTone) {
+          expect(child.creative?.headline).not.toBe(parent.creative.headline);
+          expect(child.creative?.visual).not.toBe(parent.creative.visual);
+        }
+      }
+    }
+  });
+
+  it("writes the birth creative once, not on every tick", async () => {
+    const { createCampaign, tick } = await import("./engine");
+    const { createAdPlatform } = await import("./ads/index");
+    const { resetAgentCounter } = await import("./evolution");
+    const { mulberry32 } = await import("./rng");
+
+    resetAgentCounter();
+    const { campaign, market } = createCampaign({
+      product: PRODUCT,
+      budgetUsd: 60_000,
+      perAgentUsd: 2_100,
+      epochCapUsd: 175,
+      populationSize: 6,
+      seed: 999,
+      evolution: { ticksPerGeneration: 3, maxPopulation: 10, minPopulation: 3 },
+    });
+    const rng = mulberry32(campaign.seed ^ 0x5eed);
+    const hooks = {
+      adPlatform: createAdPlatform(market, campaign.seed),
+      originUrl: "http://demo.test",
+    };
+    for (let i = 0; i < 12; i++) await tick(campaign, market, rng, hooks);
+
+    // Ticks must not append publications; only a birth or an explicit pitch-off does.
+    for (const child of campaign.agents.filter((a) => a.parentId !== null)) {
+      expect(child.creatives.length).toBe(1);
+    }
+  });
+});
