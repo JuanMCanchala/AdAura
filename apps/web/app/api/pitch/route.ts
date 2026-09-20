@@ -3,9 +3,12 @@ import {
   type ProductImage,
   generateCreatives,
   hasApiKey,
+  missingConfigHint,
+  providerName,
   templateCreative,
   voiceFor,
 } from "@/lib/creative";
+import { log } from "@/lib/engine";
 import { persist, requireSession } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -63,13 +66,23 @@ export async function POST(request: Request) {
     };
   }
 
+  // The photo the publications carry. Stored on the campaign already, so the reference is
+  // what travels with each post rather than another copy of the bytes.
+  const imageRef = campaign.images[0] ?? (body.image ? String(body.image) : null);
+
   let creatives: Map<string, ReturnType<typeof templateCreative>>;
   let degraded: string | null = null;
+  const startedAt = Date.now();
   try {
     creatives = await generateCreatives({
       product: campaign.product,
       context,
       image,
+      imageRef,
+      tick: campaign.tick,
+      campaignIds: Object.fromEntries(
+        alive.map((a) => [a.id, a.adCampaignId]),
+      ),
       agents: alive.map((a) => ({
         id: a.id,
         label: a.label,
@@ -82,20 +95,37 @@ export async function POST(request: Request) {
     creatives = new Map(
       alive.map((a) => [
         a.id,
-        templateCreative(a.genome, campaign.product, context),
+        templateCreative(a.genome, campaign.product, context, imageRef),
       ]),
     );
   }
 
+  const MAX_HISTORY = 8;
   for (const agent of alive) {
     const creative = creatives.get(agent.id);
-    if (creative) agent.creative = creative;
+    if (!creative) continue;
+    agent.creative = creative;
+    // Keep the run of publications so a gallery can show that an agent rewrites its pitch
+    // rather than repeating one. Capped, or a long demo would grow the snapshot forever.
+    agent.creatives = [...(agent.creatives ?? []), creative].slice(-MAX_HISTORY);
+    log(
+      campaign,
+      "conversion",
+      agent.id,
+      `${agent.label} published creative #${agent.creatives.length}`,
+    );
   }
   persist();
 
   return NextResponse.json({
     usedModel: hasApiKey() && !degraded,
     degraded,
+    // Which backend answered, so the panel can say "local model" rather than guess.
+    provider: providerName(),
+    configHint: hasApiKey() ? null : missingConfigHint(),
+    // The agents never see the photo; it is attached to each publication as an asset.
+    imageSentToModel: false,
+    elapsedMs: Date.now() - startedAt,
     pitches: alive.map((a) => ({
       agentId: a.id,
       label: a.label,

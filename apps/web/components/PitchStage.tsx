@@ -74,10 +74,13 @@ export function PitchStage({
       }
       setPitches(data.pitches);
       if (data.degraded)
-        setNote(`Wrote these from templates — the model call failed: ${data.degraded}`);
+        setNote(
+          `Wrote these from templates — the ${data.provider ?? "model"} call failed: ${data.degraded}`,
+        );
       else if (!data.usedModel)
         setNote(
-          "Wrote these from templates. Set ANTHROPIC_API_KEY to have the agents read the photo and write their own.",
+          data.configHint ??
+            "Wrote these from templates — no model is configured.",
         );
       await speakAll(data.pitches);
     } catch (e) {

@@ -1,5 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { type Genome, describe } from "./genome";
+import { selectedProvider, selectedProviderName } from "./ai";
+import type { CreativeRequest, ProductImage } from "./ai/types";
+import type { Genome } from "./genome";
 import type { ProductSpec } from "./market";
 import type { Creative, Voice } from "./types";
 
@@ -11,29 +12,25 @@ import type { Creative, Voice } from "./types";
  * difference is the whole point of the live demo — the population is visibly arguing about
  * how to sell the same thing.
  *
- * An API key is optional. Without one every agent still gets a pitch from the template
- * fallback, so the demo never depends on a network call succeeding on stage.
+ * Which model writes the pitches is a deployment choice (`AI_PROVIDER`), not something this
+ * file knows about. What it does own is the guarantee that every agent ends up with a pitch:
+ * no provider configured, or a provider that fails, still leaves the stage full.
  */
 
-const MODEL = "claude-opus-5";
+export type { ProductImage, CreativeRequest };
 
-/** An image the user uploaded, already normalised to what the API wants. */
-export type ProductImage = {
-  /** Base64 payload with no data: prefix and no newlines. */
-  data: string;
-  mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
-};
-
-export type CreativeRequest = {
-  product: ProductSpec;
-  /** Free text the user wrote about what they are selling. */
-  context: string;
-  image: ProductImage | null;
-  agents: Array<{ id: string; label: string; genome: Genome }>;
-};
-
+/** True when the selected provider has what it needs to be worth calling. */
 export function hasApiKey(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return selectedProvider().isConfigured();
+}
+
+/** Which provider is in play, for the response and for error messages. */
+export function providerName(): string {
+  return selectedProviderName();
+}
+
+export function missingConfigHint(): string {
+  return selectedProvider().missingConfigHint();
 }
 
 /**
@@ -64,11 +61,14 @@ export function voiceFor(genome: Genome): Voice {
   };
 }
 
-/** The deterministic fallback. No API key, no network, still a different pitch per genome. */
+/** The deterministic fallback. No model, no network, still a different pitch per genome. */
 export function templateCreative(
   genome: Genome,
   product: ProductSpec,
   context: string,
+  imageRef: string | null = null,
+  tick = 0,
+  adCampaignId: string | null = null,
 ): Creative {
   const hook: Record<string, string> = {
     humorous: `Look, nobody needs ${product.name}. You just want it. That is allowed.`,
@@ -97,121 +97,49 @@ export function templateCreative(
     body: detail,
     cta,
     spoken: `${line} ${detail} ${cta}`,
+    imageRef,
     source: "template",
+    tick,
+    adCampaignId,
   };
 }
 
 /**
- * Ask Claude for one pitch per agent, in a single request.
+ * One pitch per living agent, from whichever provider is selected.
  *
- * One call rather than one per agent: the product photo is the bulk of the input, and
- * sending it six times would cost six times as much and take six times as long, which on
- * stage is the difference between a demo and a wait.
+ * Throws only on a provider failure — the caller turns that into the `degraded` signal and
+ * falls back to templates, so a model outage costs the pitches their sparkle but never the
+ * demo itself.
  */
 export async function generateCreatives(
   req: CreativeRequest,
 ): Promise<Map<string, Creative>> {
   const out = new Map<string, Creative>();
+  const provider = selectedProvider();
+  // The asset every publication carries. Never sent to a model.
+  const imageRef = req.imageRef ?? null;
+  const tick = req.tick ?? 0;
+  const campaignOf = (agentId: string) => req.campaignIds?.[agentId] ?? null;
 
-  if (!hasApiKey()) {
+  if (!provider.isConfigured()) {
     for (const a of req.agents)
-      out.set(a.id, templateCreative(a.genome, req.product, req.context));
+      out.set(
+        a.id,
+        templateCreative(
+          a.genome,
+          req.product,
+          req.context,
+          imageRef,
+          tick,
+          campaignOf(a.id),
+        ),
+      );
     return out;
   }
 
-  const client = new Anthropic();
+  const pitches = await provider.generate(req);
+  const byLabel = new Map(pitches.map((p) => [p.label, p]));
 
-  const roster = req.agents
-    .map((a) => `${a.label}: ${describe(a.genome)}`)
-    .join("\n");
-
-  const instructions = [
-    `You are writing the spoken sales pitch for ${req.agents.length} competing AI sales agents.`,
-    `They are all selling the same product and each one has a different strategy.`,
-    ``,
-    `Product: ${req.product.name} — $${req.product.priceUsd}, category ${req.product.category}.`,
-    req.context.trim()
-      ? `What the seller says about it: ${req.context.trim()}`
-      : `The seller gave no extra description.`,
-    req.image
-      ? `A photo of the product is attached. Use what you can actually see in it — a detail from the image makes the pitch concrete.`
-      : `No photo was provided.`,
-    ``,
-    `The agents and their strategies:`,
-    roster,
-    ``,
-    `For each agent write a pitch that could only come from that strategy. An urgent agent`,
-    `selling to teens on TikTok with a scarcity close must not sound like an empathetic one`,
-    `writing a newsletter for professionals. Make the difference audible.`,
-    ``,
-    `"spoken" is read aloud by a speech synthesiser: two or three sentences of plain speech,`,
-    `no line breaks, no lists, no markdown, no emoji, no stage directions. Contractions are`,
-    `good. Write what a person would say out loud, not what a brochure would print.`,
-    `Do not invent facts about the product that the photo and description do not support.`,
-  ].join("\n");
-
-  const content: Anthropic.ContentBlockParam[] = [];
-  if (req.image) {
-    content.push({
-      type: "image",
-      source: {
-        type: "base64",
-        media_type: req.image.mediaType,
-        data: req.image.data,
-      },
-    });
-  }
-  content.push({ type: "text", text: instructions });
-
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
-    output_config: {
-      effort: "medium",
-      format: {
-        type: "json_schema",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["pitches"],
-          properties: {
-            pitches: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties: false,
-                required: ["label", "headline", "body", "cta", "spoken"],
-                properties: {
-                  label: { type: "string" },
-                  headline: { type: "string" },
-                  body: { type: "string" },
-                  cta: { type: "string" },
-                  spoken: { type: "string" },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-    messages: [{ role: "user", content }],
-  });
-
-  const text = response.content.find((b) => b.type === "text");
-  if (!text || text.type !== "text") throw new Error("No pitches came back.");
-
-  const parsed = JSON.parse(text.text) as {
-    pitches: Array<{
-      label: string;
-      headline: string;
-      body: string;
-      cta: string;
-      spoken: string;
-    }>;
-  };
-
-  const byLabel = new Map(parsed.pitches.map((p) => [p.label, p]));
   for (const a of req.agents) {
     const p = byLabel.get(a.label);
     // A model that skipped an agent must not leave it mute on stage.
@@ -223,9 +151,19 @@ export async function generateCreatives(
             body: p.body,
             cta: p.cta,
             spoken: p.spoken,
+            imageRef,
             source: "llm",
+            tick,
+            adCampaignId: campaignOf(a.id),
           }
-        : templateCreative(a.genome, req.product, req.context),
+        : templateCreative(
+            a.genome,
+            req.product,
+            req.context,
+            imageRef,
+            tick,
+            campaignOf(a.id),
+          ),
     );
   }
   return out;
