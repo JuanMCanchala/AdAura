@@ -1,0 +1,21 @@
+node_modules/
+.next/
+out/
+dist/
+.env
+.env.local
+*.log
+
+# prisma
+*.db
+*.db-journal
+
+# foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/
+
+# os
+Thumbs.db
+.DS_Store

@@ -1,0 +1,17 @@
+{
+  "name": "darwin-agents",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Autonomous marketing agents that compete, die and reproduce — with their budget enforced on Ethereum.",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w web",
+    "build": "npm run build -w web",
+    "sim": "npm run sim -w web",
+    "test": "npm run test -w web",
+    "contracts:test": "forge test -vv --root contracts",
+    "contracts:build": "forge build --root contracts"
+  }
+}
