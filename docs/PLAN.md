@@ -26,7 +26,7 @@ Los agentes gastan para conseguir ventas. Cada 3 ciclos hay un corte generaciona
 | Claim                                               | Cómo lo probamos en vivo                                                                                                                                        |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | La población **realmente aprende**                  | `npm run sim` corre 20 generaciones y compara contra el óptimo global calculado por fuerza bruta sobre las 40.500 estrategias. Falla con código 1 si no mejora. |
-| El dinero del humano **está acotado por la cadena** | Botón "Run it on chain": el agente intenta gastar de más y el nodo rechaza la transacción con `AllowanceExceeded`.                                              |
+| El dinero del humano **está acotado por la cadena** | Botón "Run it on chain": el agente intenta gastar de más y el nodo rechaza la transacción con `EpochCapExceeded` — el techo diario, que es el que muerde primero porque `epochCap` es `perAgent / 12`. El techo de por vida (`AllowanceExceeded`) y el de la campaña (`GlobalCapExceeded`) están cubiertos por los tests del contrato. |
 
 ---
 
@@ -69,9 +69,9 @@ Y el **árbol evolutivo completo se reconstruye solo con los eventos** `AgentReg
 | ---------------------- | --------------------------------------------------------- | ------------------------------------- |
 | 0 · Scaffold           | Monorepo, Foundry, Next 15, Tailwind 4                    | **listo**                             |
 | 1 · Contratos          | `AgentTreasury.sol`, `MockUSD.sol`, deploy script         | **listo — 17/17 tests**               |
-| 2 · Motor evolutivo    | genoma, mercado, selección, mutación, inmigración         | **listo — 18/18 tests**               |
-| 3 · Capa on-chain      | `chain.ts` con viem, wallet HD por agente, ABIs generados | **código listo, sin desplegar**       |
-| 4 · x402 / MPP         | endpoint 402 real + verificación contra la cadena         | **código listo, sin probar on-chain** |
+| 2 · Motor evolutivo    | genoma, mercado, selección, mutación, inmigración         | **listo — 20/20 tests**               |
+| 3 · Capa on-chain      | `chain.ts` con viem, wallet HD por agente, ABIs generados | **probado contra Anvil, sin desplegar en HashKey** |
+| 4 · x402 / MPP         | endpoint 402 real + verificación contra la cadena         | **probado de punta a punta contra Anvil** |
 | 5 · Dashboard          | linaje, economía, tabla, controles, log                   | **listo**                             |
 | 6 · Landing + tracking | wizard de campaña, storefront, conversión atribuida       | **listo**                             |
 | 7 · Entrega            | deploy, video, Devfolio                                   | **pendiente**                         |
@@ -80,7 +80,7 @@ Y el **árbol evolutivo completo se reconstruye solo con los eventos** `AgentReg
 
 1. **Fondear el deployer** en la faucet de HashKey testnet — `0xE99B67867E96833583ccadCFcF13499A10605544` en https://hskchain.net/faucet (tiene captcha, lo tiene que hacer una persona).
 2. **Desplegar** `MockUSD` + `AgentTreasury` en HashKey testnet (chainId 133) y llenar `TREASURY_ADDRESS` / `TOKEN_ADDRESS` en `.env`.
-3. **Probar el botón "Run it on chain"** de punta a punta contra la testnet.
+3. **Probar el botón "Run it on chain"** de punta a punta contra la testnet. (De punta a punta contra Anvil ya pasa; ver HANDOFF.md.)
 4. **Deploy a Vercel** (root directory `apps/web`).
 5. **Video de 2–3 min** + submission en Devfolio.
 
@@ -162,7 +162,7 @@ Tres correcciones que salieron de esto y que valen para el pitch:
 2. **Dashboard, generación 0**: seis agentes, seis estrategias al azar, todos perdiendo plata.
 3. **Correr 20–30 días**: la tira de linaje se llena. Discos verdes que crecen, anillos sepia de los que murieron, líneas que unen hijo con padre.
 4. **La tabla**: quién está vivo, qué estrategia le funcionó, cuánto gastó y cuánto ganó. Señalar un hijo: "heredó de A04, le cambió el tono y el CTA".
-5. **"Prove it on chain"**: el agente pide inventario → 402 → paga desde su wallet → recibe el inventario → intenta gastar de más → **la cadena lo rechaza**.
+5. **"Prove it on chain"**: el agente pide inventario → 402 → paga desde su wallet → recibe el inventario → intenta gastar de más → **la cadena lo rechaza** (en pantalla sale `reverted with EpochCapExceeded`).
 6. **El explorer**: abrir la tesorería y mostrar los eventos. "El árbol que acaban de ver se reconstruye desde acá sin confiar en nosotros."
 7. **El número**: en el seed 99, la generación 0 rinde **−62%** y la generación 7 rinde **+433%**. El campeón coincide en 6 de 7 genes con el óptimo global que calculamos por fuerza bruta.
 
@@ -174,7 +174,7 @@ Tres correcciones que salieron de esto y que valen para el pitch:
 npm install
 
 npm run contracts:test    # forge test — 17 tests
-npm run test              # vitest — 18 tests
+npm run test              # vitest — 20 tests
 npm run sim               # 20 generaciones headless vs el óptimo global
 npm run dev               # http://localhost:3000
 ```

@@ -7,7 +7,7 @@ Para quien siga desde otra sesión. El plan completo está en [PLAN.md](./PLAN.m
 ```bash
 npm install
 npm run contracts:test    # 17/17 — necesita forge en el PATH
-npm run test              # 18/18
+npm run test              # 20/20
 npm run dev               # http://localhost:3000
 ```
 
@@ -18,10 +18,32 @@ Si `forge` no está: descargar `foundry_v1.8.3_win32_amd64.zip` de los releases 
 |                |                              |
 | -------------- | ---------------------------- |
 | `forge test`   | 17/17                        |
-| `vitest`       | 18/18                        |
+| `vitest`       | 20/20                        |
 | `tsc --noEmit` | limpio                       |
 | `next build`   | compila                      |
 | `npm run sim`  | PASS en los 5 seeds probados |
+
+### El camino on-chain ya se ejecutó (contra Anvil, no contra HashKey)
+
+Los 6 pasos de `/api/prove` corren enteros contra un EVM real: se levanta un nodo local con
+el mismo chainId 133, se despliega con el mismo `Deploy.s.sol`, y el agente registra wallet,
+paga su x402 firmando él mismo, recibe el inventario y **la cadena le rechaza el sobregiro**.
+
+```bash
+anvil --chain-id 133 --port 8545 --silent &
+cd contracts && forge script script/Deploy.s.sol \
+  --rpc-url http://127.0.0.1:8545 --broadcast \
+  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+# copiar las dos direcciones a apps/web/.env.local con RPC_URL=http://127.0.0.1:8545
+```
+
+Ojo con dos cosas que salieron de ahí:
+
+- **El sobregiro revierte con `EpochCapExceeded`, no con `AllowanceExceeded`.** El techo diario
+  es 12× más apretado que el de por vida (`epochCap = perAgent / 12`), así que muerde primero.
+  Los dos son reales y los dos tienen test; el guion del pitch ya dice el correcto.
+- **Falta montar Anvil no prueba gas real.** Contra HashKey esperar fricción en gas, nonces y
+  timeouts del RPC, que es justo lo que un nodo local no reproduce.
 
 ## Lo siguiente, en orden
 
@@ -32,9 +54,24 @@ Si `forge` no está: descargar `foundry_v1.8.3_win32_amd64.zip` de los releases 
    forge script script/Deploy.s.sol --rpc-url https://testnet.hsk.xyz --broadcast --private-key $DEPLOYER_PRIVATE_KEY
    ```
    Copiar las dos direcciones que imprime a `TREASURY_ADDRESS` y `TOKEN_ADDRESS` en el `.env` de la raíz, y reiniciar `npm run dev`.
-3. **Probar el botón "Run it on chain"** del dashboard. Es el único camino que todavía no se ejecutó contra una cadena real — esperar fricción ahí (gas, nonces, timeouts del RPC).
+3. **Probar el botón "Run it on chain"** del dashboard contra HashKey. Los 6 pasos ya corren
+   enteros contra Anvil (ver abajo), así que la lógica está verificada; lo que falta es la
+   fricción que solo da una red de verdad: gas, nonces y timeouts del RPC.
 4. **Deploy a Vercel.** Root directory `apps/web`. Las variables de `.env` van como env vars del proyecto.
 5. **Video de 2–3 min** siguiendo el guion de la sección 7 de PLAN.md, y submission en Devfolio ("EAG Global Buildathon").
+
+## Un bug que ya se arregló y conviene no volver a introducir
+
+**Correr la demo dos veces contra el mismo despliegue fallaba con `AgentExists()`.**
+
+`AgentTreasury` indexa agentes **por dirección y de forma global**, no por campaña. La sesión
+reiniciaba la derivación HD en 0 con cada campaña nueva, así que la segunda campaña volvía a
+derivar las wallets de la primera y el contrato la rechazaba. En vivo eso significa que el
+botón "Prove it on chain" funciona en la primera campaña y revienta en la segunda.
+
+El arreglo (`lib/store.ts`): cada campaña reclama un **bloque de 256 índices** de derivación
+mediante un cursor persistido en `data/wallet-cursor.json`. `lib/store.test.ts` lo cubre —
+si alguien vuelve a poner `nextWalletIndex: 0` en `startCampaign`, ese test se pone rojo.
 
 ## Cosas que conviene saber antes de tocar el código
 
