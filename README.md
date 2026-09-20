@@ -46,13 +46,15 @@ El humano conserva siempre el interruptor: `setPaused()` congela a toda la pobla
 
 ## Estado
 
-| Componente                                   | Estado                                |
-| -------------------------------------------- | ------------------------------------- |
-| `AgentTreasury.sol` + `MockUSD.sol`          | listo — 15/15 tests                   |
-| Motor evolutivo (genoma, mercado, selección) | listo — converge de forma verificable |
-| Integración on-chain (wallets por agente)    | en curso                              |
-| Pagos agente→servicio vía x402 / MPP         | en curso                              |
-| Dashboard                                    | en curso                              |
+| Componente | Estado |
+| --- | --- |
+| `AgentTreasury.sol` + `MockUSD.sol` | listo — 17/17 tests |
+| Motor evolutivo (genoma, mercado, selección) | listo — 18/18 tests, converge en 5 seeds |
+| Dashboard, wizard y storefront | listo |
+| Integración on-chain (wallet por agente) | código listo, falta desplegar |
+| Pagos agente→servicio vía x402 / MPP | código listo, falta probar contra la testnet |
+
+Plan completo y ruta pendiente en [docs/PLAN.md](docs/PLAN.md). Para retomar desde otra sesión, [docs/HANDOFF.md](docs/HANDOFF.md).
 
 ## Cómo correrlo
 
