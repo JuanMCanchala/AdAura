@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "sim": "tsx scripts/sim.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "abi": "tsx scripts/abi.ts"
   },
   "dependencies": {
     "next": "15.5.4",
