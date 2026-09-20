@@ -67,8 +67,14 @@ Ojo con dos cosas que salieron de ahí:
 
    Dos cosas que ya están resueltas y conviene no deshacer:
 
-   - `apps/web/vercel.json` fija `maxDuration` de `/api/prove` en **60s**. El plan Hobby no
-     permite más y pedir 120 hace fallar el deploy.
+   - **Next tiene que ir en 15.5.25 o más.** Con 15.5.4 el build termina bien y Vercel
+     **rechaza el deploy**: `Vulnerable version of Next.js detected` (CVE-2025-66478). No es
+     un aviso, es un bloqueo.
+   - `apps/web/vercel.json` fija `maxDuration` de `/api/prove` en **60s**. El plan de la
+     cuenta es Hobby, que no permite más, y pedir 120 hace fallar el deploy.
+   - `vercel deploy` **sin deployment de producción previo apunta a producción**, no a
+     preview. Para un preview cuando el proyecto está vacío, desplegar dos veces o usar el
+     dashboard. No es lo que uno espera del nombre del comando.
    - El filesystem de Vercel es de solo lectura, así que el cursor de wallets no se puede
      persistir. El fallback reparte bloques con un contador de proceso, no con el reloj: dos
      campañas creadas en el mismo segundo tendrían el mismo bloque y volvería el
