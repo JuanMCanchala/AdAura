@@ -97,12 +97,15 @@ export function runGeneration(campaign: Campaign, rng: Rng): GenerationOutcome {
   for (const entry of scored) {
     const brokeEven = entry.fitness >= cfg.survivalThresholdMicro;
     const hasBudget = remainingAllowance(entry.agent) > 0;
-    // An agent that never got to spend has not been judged yet; give it another generation.
-    const untested = entry.agent.spentMicro === 0;
+    // Not enough traffic bought yet to tell a bad strategy from an unlucky one.
+    const untested = entry.agent.clicks < cfg.minClicksToJudge;
 
-    if (!hasBudget && !untested) {
+    if (!hasBudget) {
+      // Out of money is out of the game, whatever the evidence says — it cannot act again.
       killed.push({ ...entry, reason: "out_of_budget" });
-    } else if (!brokeEven && !untested) {
+    } else if (untested) {
+      survivors.push(entry.agent);
+    } else if (!brokeEven) {
       killed.push({ ...entry, reason: "unprofitable" });
     } else {
       survivors.push(entry.agent);
@@ -186,8 +189,13 @@ function immigrate(
   const missing = cfg.minPopulation - livingCount;
   if (missing <= 0) return [];
 
-  const allocated = campaign.agents.reduce((s, a) => s + a.allowanceMicro, 0);
-  let unallocated = Math.max(0, campaign.budgetMicro - allocated);
+  // Money is in exactly one of three places: already spent, committed to an agent that is
+  // still trading, or free. A shut-down agent releases whatever it did not burn.
+  const spent = campaign.agents.reduce((s, a) => s + a.spentMicro, 0);
+  const committed = campaign.agents
+    .filter(isAlive)
+    .reduce((s, a) => s + Math.max(0, a.allowanceMicro - a.spentMicro), 0);
+  let unallocated = Math.max(0, campaign.budgetMicro - spent - committed);
 
   const drafted: Agent[] = [];
   for (let i = 0; i < missing; i++) {

@@ -90,6 +90,14 @@ export type EvolutionConfig = {
   minPopulation: number;
   /** Genes changed per child, at most. */
   mutationGenes: number;
+  /**
+   * Clicks an agent must have bought before selection is allowed to judge it.
+   *
+   * Conversions are rare and integral: at low spend a perfectly good strategy can show zero
+   * sales for a few days purely by luck. Culling on that is not selection, it is noise, and
+   * it wipes out the population before it has learned anything.
+   */
+  minClicksToJudge: number;
   weights: FitnessWeights;
 };
 
@@ -101,6 +109,7 @@ export const DEFAULT_EVOLUTION: EvolutionConfig = {
   maxPopulation: 12,
   minPopulation: 4,
   mutationGenes: 2,
+  minClicksToJudge: 400,
   weights: PROFIT_ONLY,
 };
 

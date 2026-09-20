@@ -32,12 +32,12 @@ async function main() {
       margin: 0.62,
       category: "wellness",
     },
-    budgetUsd: 4000,
-    perAgentUsd: 60,
-    epochCapUsd: 10,
-    populationSize: 10,
+    budgetUsd: 60_000,
+    perAgentUsd: 2100,
+    epochCapUsd: 175,
+    populationSize: 6,
     seed,
-    evolution: { ticksPerGeneration, maxPopulation: 12, minPopulation: 6 },
+    evolution: { ticksPerGeneration, maxPopulation: 12, minPopulation: 5 },
   });
 
   const rng = mulberry32(seed ^ 0x5eed);

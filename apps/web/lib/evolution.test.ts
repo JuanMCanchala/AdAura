@@ -27,12 +27,12 @@ const PRODUCT = {
 function freshCampaign(seed: number, overrides = {}) {
   return createCampaign({
     product: PRODUCT,
-    budgetUsd: 4000,
-    perAgentUsd: 60,
-    epochCapUsd: 10,
-    populationSize: 10,
+    budgetUsd: 60_000,
+    perAgentUsd: 2100,
+    epochCapUsd: 175,
+    populationSize: 6,
     seed,
-    evolution: { ticksPerGeneration: 3, maxPopulation: 12, minPopulation: 6 },
+    evolution: { ticksPerGeneration: 3, maxPopulation: 12, minPopulation: 5 },
     ...overrides,
   });
 }

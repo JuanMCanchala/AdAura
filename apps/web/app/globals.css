@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+/*
+  Palette taken from the specimen cabinet rather than the crypto deck: chlorophyll for a
+  living agent, iron oxide for a dead one, ledger indigo for money, sulfur for the champion.
+  Life and death are also encoded in shape (filled vs hollow), so the chart survives being
+  read by someone who cannot separate the two hues.
+*/
+:root {
+  --paper: #eff2ef;
+  --paper-sunk: #e4e9e4;
+  --ink: #12241c;
+  --ink-soft: #46584f;
+  --ink-faint: #7b8a82;
+  --rule: rgba(18, 36, 28, 0.16);
+  --rule-strong: rgba(18, 36, 28, 0.38);
+
+  --alive: #1f7a4d;
+  --dead: #7a3b22;
+  --ledger: #243b6b;
+  --sulfur: #a8860a;
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-body: var(--font-archivo), system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1512;
+    --paper-sunk: #161d18;
+    --ink: #e2e8e3;
+    --ink-soft: #a3b0a8;
+    --ink-faint: #6f7d75;
+    --rule: rgba(226, 232, 227, 0.16);
+    --rule-strong: rgba(226, 232, 227, 0.4);
+
+    --alive: #55c98a;
+    --dead: #c97a52;
+    --ledger: #8fa8e0;
+    --sulfur: #e0c04a;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #0f1512;
+  --paper-sunk: #161d18;
+  --ink: #e2e8e3;
+  --ink-soft: #a3b0a8;
+  --ink-faint: #6f7d75;
+  --rule: rgba(226, 232, 227, 0.16);
+  --rule-strong: rgba(226, 232, 227, 0.4);
+  --alive: #55c98a;
+  --dead: #c97a52;
+  --ledger: #8fa8e0;
+  --sulfur: #e0c04a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variation-settings:
+    "SOFT" 0,
+    "WONK" 1;
+  letter-spacing: -0.015em;
+  line-height: 1.08;
+  margin: 0;
+}
+
+/* Money and counts line up in columns; a ledger that does not align is not a ledger. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ledger);
+  outline-offset: 2px;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: 0;
+  padding: 0.45rem 0.55rem;
+  width: 100%;
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid var(--ledger);
+  outline-offset: -1px;
+}
+
+.band {
+  border-top: 1px solid var(--rule);
+}
+
+.hairline {
+  border-bottom: 1px solid var(--rule);
+}
+
+.press {
+  border: 1px solid var(--rule-strong);
+  background: transparent;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.press:hover:not(:disabled) {
+  background: var(--paper-sunk);
+}
+
+.press:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.press-solid {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.press-solid:hover:not(:disabled) {
+  background: var(--ink-soft);
+  border-color: var(--ink-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
