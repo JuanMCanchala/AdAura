@@ -7,6 +7,7 @@ import {
   type WalletClient,
   createPublicClient,
   createWalletClient,
+  decodeEventLog,
   defineChain,
   http,
   keccak256,
@@ -174,14 +175,34 @@ export class ChainBridge {
       hash: open,
     });
 
-    const campaignId = await this.publicClient.readContract({
-      address: this.cfg.treasury,
-      abi: agentTreasuryAbi,
-      functionName: "nextCampaignId",
-    });
+    // Take the id from the event this transaction emitted, not from the counter.
+    //
+    // Reading `nextCampaignId` and subtracting one looks equivalent and is not: the counter
+    // starts at 1, so before any campaign exists it reads 1 and the subtraction yields 0 —
+    // an id no campaign has. Every later call then failed `onlyOwnerOf(0)` and reverted.
+    // The receipt describes what actually happened, so it cannot drift.
+    let campaignId: bigint | null = null;
+    for (const entry of receipt.logs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: agentTreasuryAbi,
+          data: entry.data,
+          topics: entry.topics,
+        });
+        if (decoded.eventName === "CampaignOpened") {
+          campaignId = (decoded.args as { campaignId: bigint }).campaignId;
+          break;
+        }
+      } catch {
+        // Logs from the token transfer share the receipt; skip anything that is not ours.
+      }
+    }
+    if (campaignId === null)
+      throw new Error(
+        "The campaign was funded but the chain did not report its id — CampaignOpened was not in the receipt.",
+      );
 
-    void receipt;
-    return { campaignId: (campaignId as bigint) - 1n, hashes };
+    return { campaignId, hashes };
   }
 
   // -------------------------------------------------------------- agents
