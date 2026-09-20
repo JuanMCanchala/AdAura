@@ -113,6 +113,36 @@ si alguien vuelve a poner `nextWalletIndex: 0` en `startCampaign`, ese test se p
   personal a su dueño**: un colaborador no puede, por más invitación que acepte. Sin eso la
   integración de git nunca enlaza y no hay deploy automático.
 
+## Desplegado y funcionando en HashKey Chain Testnet
+
+```
+Chain ID   133
+RPC        https://testnet.hsk.xyz
+Explorer   https://testnet-explorer.hskchain.net
+Treasury   0x87017Fdeb14140043dfE323a48e26c4be0169bE4
+MockUSD    0x9b5d391F1fed4D4C18ae5ce221476d60a8C96b93
+```
+
+El botón "Prove it on chain" corre los cinco pasos contra la testnet de
+verdad: 402, pago firmado por la wallet del propio agente, verificación
+contra el recibo, inventario entregado, y sobregiro rechazado con
+`EpochCapExceeded`. Comprobado aparte con `cast receipt`: el `from` de la
+transacción es la wallet del agente, no la del operador — el contrato lee
+`msg.sender` y es el agente.
+
+**Hay que hacer clic dos veces.** La primera corrida registra al agente en la
+tesorería y termina ahí; la segunda hace la secuencia completa. Conviene
+ensayarlo así.
+
+**La wallet del operador es nueva y solo vive en `.env.local`.** La dirección
+que aparecía fondeada en la testnet (`0xf39F…2266`) es la cuenta 0 de Anvil,
+cuya llave privada está publicada en la documentación de Foundry: cualquiera
+puede vaciarla. No se usa. Si el operador se queda sin HSK, se recarga en
+https://hskchain.net/faucet.
+
+**Mainnet no.** `MockUSD` tiene faucet abierta, el contrato no está auditado,
+y los tracks premian testnet. Decirlo en el pitch suma en vez de restar.
+
 ## La red publicitaria
 
 `lib/ads/` es una interfaz con una sola implementación: un simulador local. El agente no sabe
