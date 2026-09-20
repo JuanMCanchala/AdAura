@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { LineageStrip } from "./LineageStrip";
 import { PopulationTable } from "./PopulationTable";
 import { CreativeGallery } from "./CreativeGallery";
@@ -24,6 +25,14 @@ export function Dashboard() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
+  /**
+   * Autoplay is what turns the dashboard into something to watch rather than click.
+   * While the speaker is talking, days pass, agents die and children are born on screen.
+   */
+  const [running, setRunning] = useState(false);
+  const router = useRouter();
+  // Guards against a slow tick overlapping the next interval and queueing requests up.
+  const ticking = useRef(false);
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/campaign", { cache: "no-store" });
@@ -35,6 +44,28 @@ export function Dashboard() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(async () => {
+      if (ticking.current) return;
+      ticking.current = true;
+      try {
+        await fetch("/api/tick?ticks=1", { method: "POST" });
+        await refresh();
+      } catch {
+        // A failed tick should not stop the clock mid-pitch; the next one will try again.
+      } finally {
+        ticking.current = false;
+      }
+    }, 1600);
+    return () => clearInterval(id);
+  }, [running, refresh]);
+
+  // A paused campaign delivers nothing, so keep the button honest and stop the clock.
+  useEffect(() => {
+    if (campaign?.paused) setRunning(false);
+  }, [campaign?.paused]);
 
   const act = useCallback(
     async (label: string, run: () => Promise<Response>) => {
@@ -193,10 +224,25 @@ export function Dashboard() {
           padding: "1.25rem 0",
         }}
       >
+        {/* The demo button: days pass while the speaker talks, so the audience watches
+            agents be born, compete and die instead of watching someone click. */}
         <button
           type="button"
-          className="press press-solid"
+          className={running ? "press press-solid" : "press press-solid"}
           disabled={busy !== null || campaign.paused}
+          onClick={() => setRunning((r) => !r)}
+          style={
+            running
+              ? { background: "var(--loss, #b4462f)", borderColor: "var(--loss, #b4462f)" }
+              : undefined
+          }
+        >
+          {running ? "■ Stop the clock" : "▶ Run it live"}
+        </button>
+        <button
+          type="button"
+          className="press"
+          disabled={busy !== null || campaign.paused || running}
           onClick={() =>
             act("tick", () => fetch("/api/tick?ticks=1", { method: "POST" }))
           }
@@ -206,7 +252,7 @@ export function Dashboard() {
         <button
           type="button"
           className="press"
-          disabled={busy !== null || campaign.paused}
+          disabled={busy !== null || campaign.paused || running}
           onClick={() =>
             act("week", () => fetch("/api/tick?ticks=6", { method: "POST" }))
           }
@@ -230,6 +276,25 @@ export function Dashboard() {
           }
         >
           {campaign.paused ? "Resume the campaign" : "Stop everything"}
+        </button>
+        {/* Back to the setup screen with a clean slate — what the speaker presses when the
+            audience names a product. endCampaign() drops the whole session, so the next
+            campaign shares no agents, publications, metrics or events with this one. */}
+        <button
+          type="button"
+          className="press"
+          disabled={busy !== null}
+          onClick={() => {
+            setRunning(false);
+            act("new", async () => {
+              const res = await fetch("/api/campaign", { method: "DELETE" });
+              router.push("/");
+              router.refresh();
+              return res;
+            });
+          }}
+        >
+          + New campaign
         </button>
 
         <label

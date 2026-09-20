@@ -72,6 +72,7 @@ export function SetupForm() {
         populationSize,
         seed: form.get("seed") ? Number(form.get("seed")) : undefined,
         context: form.get("context") ?? "",
+        audience: form.get("audience") ?? "",
         images: photo ? [photo] : [],
       }),
     });
@@ -227,6 +228,16 @@ export function SetupForm() {
           </Field>
 
           <Field
+            label="Who should buy it?"
+            hint="Optional. The agents weigh this when they choose who to talk to."
+          >
+            <input
+              name="audience"
+              placeholder="Coffee drinkers who grind their own beans"
+            />
+          </Field>
+
+          <Field
             label="Photo of the product"
             hint="Optional. The agents look at it and use what they see."
           >
@@ -336,7 +347,9 @@ export function SetupForm() {
           disabled={submitting}
           style={{ marginTop: "1.75rem" }}
         >
-          {submitting ? "Creating the first generation…" : "Start the campaign"}
+          {submitting
+            ? "Creating the first generation…"
+            : "Launch autonomous agents"}
         </button>
       </form>
     </main>

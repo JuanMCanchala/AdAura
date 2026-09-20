@@ -80,8 +80,12 @@ export async function POST(request: Request) {
       category: String(body.product.category ?? "general"),
       // The wizard's free-text box lands here: it is what the agents read before pitching,
       // and the market already uses it as a hint about who wants this.
+      // The audience field and the free-text brief both feed what the agents read. Kept
+      // joined rather than overwriting each other: the user's own words stay canonical.
       audienceHint:
-        (body.context ? String(body.context) : "") ||
+        [body.audience ? String(body.audience) : "", body.context ? String(body.context) : ""]
+          .filter(Boolean)
+          .join(" ") ||
         (body.product.audienceHint ? String(body.product.audienceHint) : "") ||
         undefined,
     },
