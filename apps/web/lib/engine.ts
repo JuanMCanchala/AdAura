@@ -8,13 +8,22 @@ import {
   toUsd,
 } from "./types";
 import { DEFAULT_EVOLUTION } from "./types";
-import { type Market, type ProductSpec, BID, createMarket } from "./market";
+import {
+  type AdResult,
+  type Market,
+  type ProductSpec,
+  BID,
+  createMarket,
+} from "./market";
+import type { AdPlatform } from "./ads/types";
 import { type Rng, mulberry32 } from "./rng";
 import { describe } from "./genome";
 import {
+  decideBudgetScale,
   livingAgents,
   populationStats,
   remainingAllowance,
+  roiOf,
   runGeneration,
   seedPopulation,
 } from "./evolution";
@@ -92,7 +101,10 @@ export function createCampaign(input: CampaignInput): {
 /** What an agent intends to spend this tick, before any ceiling is applied. */
 export function plannedSpend(agent: Agent, campaign: Campaign): Micro {
   const intensity = BID[agent.genome.bid].spendShare;
-  const wanted = Math.round(agent.epochCapMicro * intensity);
+  // budgetScale is the agent's own decision, layered on top of what its genome implies.
+  const wanted = Math.round(
+    agent.epochCapMicro * intensity * (agent.budgetScale || 1),
+  );
 
   const globalRemaining = Math.max(
     0,
@@ -150,6 +162,14 @@ export async function tick(
       amountMicro: Micro,
       conversionId: string,
     ) => Promise<string | null>;
+    /**
+     * The advertising network. When present, agents run real campaigns through it instead
+     * of buying traffic straight from the market — same economics, but the lifecycle
+     * (create, deliver, attribute, pause) goes through the interface an adapter implements.
+     */
+    adPlatform?: AdPlatform;
+    /** Landing page a click lands on. The tracking id travels in the path, as on a network. */
+    originUrl?: string;
   } = {},
 ): Promise<TickReport> {
   const report: TickReport = {
@@ -179,6 +199,10 @@ export async function tick(
       ? await hooks.onSpend(agent, spendMicro, memo)
       : null;
 
+    // Charged after delivery, because what a campaign actually spends can be under what was
+    // offered — impressions are whole, and the network stops at the campaign's budget.
+    // Billing the offer instead would quietly overcharge an agent that asked for more than
+    // the network could sell it.
     agent.spentMicro += spendMicro;
     agent.txs.push({
       kind: "spend",
@@ -188,7 +212,27 @@ export async function tick(
       tick: report.tick,
     });
 
-    const result = market.serveAds(agent.genome, spendMicro, rng);
+    const result = hooks.adPlatform
+      ? await serveViaPlatform(
+          hooks.adPlatform,
+          agent,
+          campaign,
+          spendMicro,
+          report.tick,
+          market,
+          rng,
+          hooks.originUrl ?? "",
+        )
+      : market.serveAds(agent.genome, spendMicro, rng);
+
+    // Reconcile the charge to what the network actually billed.
+    if (hooks.adPlatform && result.spendMicro !== spendMicro) {
+      const delta = result.spendMicro - spendMicro;
+      agent.spentMicro += delta;
+      const last = agent.txs[agent.txs.length - 1];
+      if (last?.kind === "spend") last.amountMicro = result.spendMicro;
+    }
+
     agent.impressions += result.impressions;
     agent.clicks += result.clicks;
     agent.conversions += result.conversions;
@@ -224,6 +268,44 @@ export async function tick(
       conversions: result.conversions,
       revenueMicro: result.revenueMicro,
     });
+  }
+
+  // Each agent reads its own numbers and decides what to do with its budget next tick.
+  // This is the autonomous step: selection still decides who lives, but between generations
+  // the agent is the one leaning in or pulling back.
+  for (const agent of livingAgents(campaign)) {
+    const before = agent.budgetScale;
+    agent.budgetScale = decideBudgetScale(
+      agent,
+      campaign.evolution.minClicksToJudge,
+    );
+    if (agent.budgetScale !== before) {
+      log(
+        campaign,
+        "human",
+        agent.id,
+        `${agent.label} ${agent.budgetScale > before ? "raised" : "cut"} its ad budget to ${Math.round(agent.budgetScale * 100)}% (ROI ${(roiOf(agent) * 100).toFixed(0)}%)`,
+      );
+    }
+    // An agent that has decided to spend almost nothing pauses its campaign rather than
+    // dribbling money away — the same call an operator would make in the network's UI.
+    if (hooks.adPlatform && agent.adCampaignId) {
+      // Pause only an agent that has been judged and is clearly losing — not one that is
+      // simply spending a little less while it gathers evidence.
+      const shouldPause =
+        agent.clicks >= campaign.evolution.minClicksToJudge &&
+        roiOf(agent) < -0.5;
+      const isPaused = agent.adCampaignStatus === "paused";
+      if (shouldPause && !isPaused) {
+        const c = await hooks.adPlatform.pauseCampaign(agent.adCampaignId);
+        agent.adCampaignStatus = c.status;
+        log(campaign, "human", agent.id, `${agent.label} paused its ad campaign`);
+      } else if (!shouldPause && isPaused) {
+        const c = await hooks.adPlatform.resumeCampaign(agent.adCampaignId);
+        agent.adCampaignStatus = c.status;
+        log(campaign, "human", agent.id, `${agent.label} resumed its ad campaign`);
+      }
+    }
   }
 
   campaign.tick = report.tick;
@@ -266,6 +348,91 @@ export async function tick(
   }
 
   return report;
+}
+
+/**
+ * Run one tick of an agent's advertising through the network.
+ *
+ * The lifecycle is the one a real advertiser follows: open a campaign the first time, adjust
+ * its daily budget to whatever the agent decided, buy a tick of traffic, then resolve each
+ * click individually. A click converts or not according to the market's hidden truth for
+ * that strategy — the network is never told to produce a sale, it is told a sale happened,
+ * which is the same direction a real S2S postback travels.
+ */
+async function serveViaPlatform(
+  platform: AdPlatform,
+  agent: Agent,
+  campaign: Campaign,
+  spendMicro: Micro,
+  tick: number,
+  market: Market,
+  rng: Rng,
+  originUrl: string,
+): Promise<AdResult> {
+  const empty: AdResult = {
+    impressions: 0,
+    clicks: 0,
+    conversions: 0,
+    revenueMicro: 0,
+    ctr: 0,
+    cvr: 0,
+    cpmMicro: 0,
+    spendMicro: 0,
+    contributionMicro: market.contributionMicro,
+  };
+
+  if (!agent.adCampaignId) {
+    const created = await platform.createCampaign({
+      agentId: agent.id,
+      genome: agent.genome,
+      // The tracking id rides in the path, so a click arrives already attributed.
+      destinationUrl: `${originUrl}/buy/${agent.trackingId}`,
+      budgetMicro: remainingAllowance(agent),
+      dailyBudgetMicro: spendMicro,
+      tick,
+    });
+    agent.adCampaignId = created.campaignId;
+    agent.adCampaignStatus = created.status;
+    log(
+      campaign,
+      "chain",
+      agent.id,
+      `${agent.label} opened ad campaign ${created.campaignId}`,
+    );
+  } else {
+    // The agent's budget decision reaches the network as a budget change, not a restart.
+    await platform.updateBudget(agent.adCampaignId, spendMicro);
+  }
+
+  const delivery = await platform.deliver(agent.adCampaignId, tick);
+
+  // Resolve each click on its own, the way a landing page would.
+  const cvr = market.conversionRateFor(agent.genome, rng);
+  let conversions = 0;
+  let revenueMicro = 0;
+  for (const click of delivery.clicks) {
+    if (rng() >= cvr) continue;
+    await platform.recordConversion(click.clickId, click.contributionMicro);
+    conversions += 1;
+    revenueMicro += click.contributionMicro;
+  }
+
+  const live = await platform.getCampaign(agent.adCampaignId);
+  agent.adCampaignStatus = live?.status ?? agent.adCampaignStatus;
+
+  return {
+    ...empty,
+    impressions: delivery.impressions,
+    clicks: delivery.clicks.length,
+    conversions,
+    revenueMicro,
+    spendMicro: delivery.spendMicro,
+    ctr:
+      delivery.impressions === 0
+        ? 0
+        : delivery.clicks.length / delivery.impressions,
+    cvr,
+  };
 }
 
 export function log(

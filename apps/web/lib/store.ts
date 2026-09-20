@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { type AdPlatform, createAdPlatform } from "./ads";
 import { ChainBridge, type ChainConfig, configFromEnv } from "./chain";
 import { type CampaignInput, createCampaign } from "./engine";
 import { resetAgentCounter } from "./evolution";
@@ -20,6 +21,8 @@ type Session = {
   market: Market;
   rng: Rng;
   bridge: ChainBridge | null;
+  /** The advertising network this run talks to. Seeded, so a demo replays identically. */
+  adPlatform: AdPlatform;
   /** Agent id -> HD derivation index, so a restart recovers the same wallets. */
   walletIndex: Map<string, number>;
   nextWalletIndex: number;
@@ -112,6 +115,7 @@ export async function startCampaign(input: CampaignInput): Promise<Session> {
     market,
     rng: mulberry32(campaign.seed ^ 0x5eed),
     bridge: cfg ? new ChainBridge(cfg) : null,
+    adPlatform: createAdPlatform(market, campaign.seed),
     walletIndex: new Map(),
     nextWalletIndex: claimWalletBlock(),
   };
@@ -190,6 +194,11 @@ function restore(): Session | null {
       // campaign's money and lineage are unaffected, only the next noise draw differs.
       rng: mulberry32((campaign.seed ^ 0x5eed) + campaign.tick),
       bridge: cfg ? new ChainBridge(cfg) : null,
+      // Campaign ids on agents survive the snapshot; the platform's own counters do not.
+      adPlatform: createAdPlatform(
+        createMarket(campaign.product, campaign.seed),
+        campaign.seed,
+      ),
       walletIndex: new Map(parsed.walletIndex ?? []),
       // Fall back to the high-water mark of the restored map, never to a bare agent count:
       // that would restart numbering inside a block another campaign already used.

@@ -22,6 +22,31 @@ export function profitOf(a: Agent): Micro {
   return a.revenueMicro - a.spentMicro;
 }
 
+/**
+ * How an agent adjusts its own spending, from its results so far.
+ *
+ * This is the lever the agent actually pulls: selection still decides who lives, but between
+ * generations a profitable agent leans in and a losing one pulls back instead of burning its
+ * allowance at a fixed rate. Bounded either side so one lucky tick cannot run away with the
+ * budget and one bad tick cannot switch the agent off before selection has judged it.
+ */
+export function decideBudgetScale(
+  agent: Agent,
+  minClicksToJudge: number,
+): number {
+  // Too early to read anything into the numbers; keep spending as the genome intends.
+  if (agent.clicks < minClicksToJudge) return 1;
+
+  const roi = roiOf(agent);
+  if (roi >= 0.5) return 1.5; // clearly working — buy more of it
+  if (roi >= 0) return 1.2; // paying for itself
+  // Cutting hard on a loss is the intuitive move and the wrong one: an agent that starves
+  // itself buys too few clicks to ever prove it was unlucky rather than bad, and dies
+  // untested. Trim, do not strangle — selection is what ends an agent, not this.
+  if (roi >= -0.5) return 0.9;
+  return 0.75;
+}
+
 export function roiOf(a: Agent): number {
   return a.spentMicro === 0 ? 0 : profitOf(a) / a.spentMicro;
 }
@@ -249,8 +274,13 @@ export function newAgent(
     diedTick: null,
     deathReason: null,
     creative: null,
+    creatives: [],
     trackingId: `${campaign.id}-${id}`,
     txs: [],
+    adCampaignId: null,
+    adCampaignStatus: null,
+    // 1 means "spend what the genome implies"; the agent moves it from there.
+    budgetScale: 1,
   };
 }
 

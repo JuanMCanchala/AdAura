@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { activeScenario, resolveSeed } from "@/lib/ads/scenario";
 import { chainConfig, endCampaign, getSession, startCampaign } from "@/lib/store";
 import { toView } from "@/lib/view";
 
@@ -6,9 +7,24 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const session = getSession();
-  if (!session) return NextResponse.json({ campaign: null, chain: chainStatus() });
+  if (!session)
+    return NextResponse.json({
+      campaign: null,
+      chain: chainStatus(),
+      scenario: scenarioStatus(),
+    });
 
-  return NextResponse.json({ campaign: toView(session.campaign), chain: chainStatus() });
+  return NextResponse.json({
+    campaign: toView(session.campaign),
+    chain: chainStatus(),
+    scenario: scenarioStatus(),
+  });
+}
+
+/** Tells the dashboard the run is reproducible, and which scenario it is. */
+function scenarioStatus() {
+  const s = activeScenario();
+  return s ? { name: s.name, seed: s.seed, summary: s.summary } : null;
 }
 
 function chainStatus() {
@@ -77,7 +93,9 @@ export async function POST(request: Request) {
     perAgentUsd,
     epochCapUsd,
     populationSize,
-    seed: body.seed !== undefined ? Number(body.seed) : undefined,
+    // An explicit seed wins; otherwise DEMO_SCENARIO / SIMULATION_SEED make the run
+    // reproducible, so a rehearsed demo behaves on stage the way it did in rehearsal.
+    seed: resolveSeed(body.seed !== undefined ? Number(body.seed) : undefined),
     evolution: {
       ticksPerGeneration: Number(body.ticksPerGeneration ?? 3),
       maxPopulation: Number(

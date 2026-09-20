@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createAdPlatform } from "@/lib/ads";
 import { tick } from "@/lib/engine";
 import { persist, requireSession, walletIndexFor } from "@/lib/store";
 
@@ -22,7 +23,12 @@ export async function POST(request: Request) {
 
   const reports = [];
   for (let i = 0; i < count; i++) {
-    reports.push(await tick(session.campaign, session.market, session.rng));
+    reports.push(
+      await tick(session.campaign, session.market, session.rng, {
+        adPlatform: session.adPlatform,
+        originUrl: new URL(request.url).origin,
+      }),
+    );
   }
 
   // Children born during these ticks need wallet slots reserved, whether or not the chain

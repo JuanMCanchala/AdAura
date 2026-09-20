@@ -68,6 +68,18 @@ export function PopulationTable({
             minWidth: 720,
           }}
         >
+          <caption
+            style={{
+              captionSide: "top",
+              textAlign: "left",
+              fontSize: 12,
+              color: "var(--ink-faint)",
+              paddingBottom: "0.5rem",
+            }}
+          >
+            Ad delivery is a local simulation. The campaign lifecycle, tracking, spend,
+            revenue and the agents&rsquo; own budget decisions are real application logic.
+          </caption>
           <thead>
             <tr style={{ color: "var(--ink-faint)", textAlign: "left" }}>
               <Th>Agent</Th>
@@ -76,6 +88,7 @@ export function PopulationTable({
               <Th align="right">Earned</Th>
               <Th align="right">Profit</Th>
               <Th align="right">Sales</Th>
+              <Th>Ad campaign</Th>
               <Th />
             </tr>
           </thead>
@@ -201,6 +214,34 @@ export function PopulationTable({
                   </Td>
                   <Td align="right" numeric>
                     {agent.conversions}
+                  </Td>
+                  <Td>
+                    {agent.adCampaignId ? (
+                      <>
+                        <span
+                          style={{
+                            color:
+                              agent.adCampaignStatus === "active"
+                                ? "var(--gain)"
+                                : "var(--ink-faint)",
+                          }}
+                        >
+                          {agent.adCampaignStatus}
+                        </span>
+                        <span
+                          style={{
+                            display: "block",
+                            fontSize: 12,
+                            color: "var(--ink-faint)",
+                            marginTop: 2,
+                          }}
+                        >
+                          budget {Math.round(agent.budgetScale * 100)}%
+                        </span>
+                      </>
+                    ) : (
+                      <span style={{ color: "var(--ink-faint)" }}>—</span>
+                    )}
                   </Td>
                   <Td align="right">
                     {!isDead && (

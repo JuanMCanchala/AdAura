@@ -31,6 +31,10 @@ export type AdResult = {
   ctr: number;
   cvr: number;
   cpmMicro: number;
+  /** What the impressions actually cost, which can be under the amount offered. */
+  spendMicro: number;
+  /** Margin on one sale, carried so a click knows its value before it converts. */
+  contributionMicro: number;
 };
 
 const CPM_USD: Record<string, number> = {
@@ -100,6 +104,15 @@ export type Market = {
   peek: () => { bestGenomeSample: Genome | null };
   serveAds: (genome: Genome, spendMicro: number, rng: Rng) => AdResult;
   trueRoi: (genome: Genome) => number;
+  /** What a strategy pays per thousand impressions — the ad platform quotes it as a bid. */
+  cpmFor: (genome: Genome) => number;
+  /** What one sale is worth, so a click can carry its value before it converts. */
+  contributionMicro: number;
+  /**
+   * The chance one click converts for this strategy, with the tick's noise applied.
+   * Exposed so clicks can be resolved one at a time instead of in a batch.
+   */
+  conversionRateFor: (genome: Genome, rng: Rng) => number;
 };
 
 const MICRO = 1_000_000;
@@ -170,6 +183,8 @@ export function createMarket(product: ProductSpec, seed = 1337): Market {
         ctr: 0,
         cvr: 0,
         cpmMicro,
+        spendMicro: 0,
+        contributionMicro,
       };
     }
 
@@ -195,6 +210,12 @@ export function createMarket(product: ProductSpec, seed = 1337): Market {
       ctr,
       cvr,
       cpmMicro,
+      // Impressions are whole, so the real cost is usually a little under what was offered.
+      spendMicro: Math.min(
+        spendMicro,
+        Math.round((impressions / 1000) * cpmMicro),
+      ),
+      contributionMicro,
     };
   }
 
@@ -218,6 +239,13 @@ export function createMarket(product: ProductSpec, seed = 1337): Market {
     product,
     serveAds,
     trueRoi,
+    conversionRateFor: (genome: Genome, rng: Rng) =>
+      clamp(rates(genome).cvr * noise(rng, 0.3), 0, 0.5),
+    cpmFor: (genome: Genome) =>
+      Math.round(
+        CPM_USD[genome.platform] * BID[genome.bid].cpmMultiplier * MICRO,
+      ),
+    contributionMicro,
     peek: () => ({ bestGenomeSample: null }),
   };
 }
