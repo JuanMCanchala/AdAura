@@ -12,6 +12,8 @@ export type AgentView = {
   parentId: string | null;
   status: "alive" | "dead";
   strategy: string;
+  /** What /buy/[tracking] keys off, so the dashboard can link to the storefront. */
+  trackingId: string;
   genome: Agent["genome"];
   mutatedGenes: string[];
   deathReason: string | null;
@@ -93,6 +95,7 @@ export function toView(campaign: Campaign): CampaignView {
       parentId: a.parentId,
       status: a.status,
       strategy: describe(a.genome),
+      trackingId: a.trackingId,
       genome: a.genome,
       mutatedGenes: a.mutatedGenes,
       deathReason: a.deathReason,

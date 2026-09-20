@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { ChainBridge, type ChainConfig, configFromEnv } from "./chain";
 import { type CampaignInput, createCampaign } from "./engine";
+import { resetAgentCounter } from "./evolution";
 import { type Market, createMarket } from "./market";
 import { type Rng, mulberry32 } from "./rng";
 import type { Campaign } from "./types";
@@ -44,6 +45,9 @@ export function requireSession(): Session {
 }
 
 export async function startCampaign(input: CampaignInput): Promise<Session> {
+  // Agent numbering restarts with each campaign, so the labels a judge reads on the
+  // dashboard are A01…A12 and not whatever the previous run happened to leave behind.
+  resetAgentCounter();
   const { campaign, market } = createCampaign(input);
 
   const cfg = configFromEnv();

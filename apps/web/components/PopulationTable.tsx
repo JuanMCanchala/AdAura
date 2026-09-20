@@ -204,15 +204,33 @@ export function PopulationTable({
                   </Td>
                   <Td align="right">
                     {!isDead && (
-                      <button
-                        type="button"
-                        className="press"
-                        disabled={busy}
-                        style={{ padding: "0.25rem 0.55rem", fontSize: 13 }}
-                        onClick={() => onKill(agent.id)}
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "0.4rem",
+                          justifyContent: "flex-end",
+                          alignItems: "center",
+                        }}
                       >
-                        Shut down
-                      </button>
+                        <a
+                          href={`/buy/${agent.trackingId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ fontSize: 13, whiteSpace: "nowrap" }}
+                          title={`Open the storefront ${agent.label} is sending traffic to`}
+                        >
+                          Its landing
+                        </a>
+                        <button
+                          type="button"
+                          className="press"
+                          disabled={busy}
+                          style={{ padding: "0.25rem 0.55rem", fontSize: 13 }}
+                          onClick={() => onKill(agent.id)}
+                        >
+                          Shut down
+                        </button>
+                      </div>
                     )}
                   </Td>
                 </tr>
