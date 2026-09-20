@@ -113,11 +113,59 @@ si alguien vuelve a poner `nextWalletIndex: 0` en `startCampaign`, ese test se p
   personal a su dueño**: un colaborador no puede, por más invitación que acepte. Sin eso la
   integración de git nunca enlaza y no hay deploy automático.
 
+## La red publicitaria
+
+`lib/ads/` es una interfaz con una sola implementación: un simulador local. El agente no sabe
+cuál está detrás, y ese es el punto — `AD_PLATFORM` decide, y el resto del código no cambia.
+
+```
+Agente → AdPlatform (interfaz) → MockAdPlatform   (hoy)
+                               → AdsterraAdapter  (después)
+```
+
+**El simulador no inventa ventas.** Vende impresiones, convierte algunas en clics y devuelve
+cada clic por separado; si ese clic termina en venta lo decide el mismo recorrido de landing
+que haría un visitante real. Por eso la atribución que muestra la demo es la de verdad.
+
+### Demo reproducible
+
+```
+AD_PLATFORM=mock
+DEMO_SCENARIO=competition     # semilla 999
+```
+
+15 ticks dan +170% de ROI agregado: un campeón en +422% que **sube** su presupuesto a 150%,
+dos hijos rentables, y cuatro agentes que **pausan su propia campaña**. Los números salen de
+la simulación; la semilla solo evita que el pitch dependa de la suerte.
+
+### Para añadir Adsterra después
+
+Un archivo nuevo, `lib/ads/adsterra.ts`, que implemente `AdPlatform` contra la API v3
+(verificada): `createCampaign` → `POST /advertiser/campaign.json`, `pauseCampaign` y
+`updateBudget` → `PATCH /advertiser/campaign/{id}.json`, `getStats` →
+`GET /advertiser/stats.json`, y `recordConversion` → el postback a `pbterra.com`. Más una
+rama en `lib/ads/index.ts`. **Nada de `engine.ts` ni de los agentes se toca.**
+
+Ojo con lo que no es código: Adsterra pide depósito mínimo de $100, KYC después del primer
+pago, y moderación antes de que una campaña entregue. Por eso el simulador es el camino de
+la demo y no un parche temporal.
+
+### Si escribes un harness headless
+
+Llama a `resetAgentCounter()` antes de cada corrida. `startCampaign()` ya lo hace; sin eso
+dos corridas con la misma semilla dan economía idéntica pero etiquetas distintas (A01 vs
+A11) y parece que la simulación no es determinista cuando sí lo es.
+
 ## Dónde están los huecos declarados
 
 - ~~`lib/creative.ts` no existe~~ — **ya existe**. Cada agente escribe su propio pitch a
   partir del genoma, la descripción y la foto del producto, y el navegador lo dice en voz
   alta (`components/PitchStage.tsx`, `app/api/pitch`).
+
+  **La foto es un asset de la publicación, no entrada del modelo.** El agente decide qué
+  decir a partir del brief de texto y su genoma; la imagen se adjunta al post terminado,
+  como en un anuncio de verdad. Además de ser la semántica correcta, es lo que hace viable
+  un modelo local: una imagen son ~1.000 tokens de prompt contra unos cientos del texto.
 
   Dos cosas que conviene no romper: **sin `ANTHROPIC_API_KEY` la demo sigue funcionando**
   (cae al fallback de plantillas, que igual da un pitch distinto por genoma), y la voz es la
