@@ -11,6 +11,10 @@ export type AgentView = {
   generation: number;
   parentId: string | null;
   status: "alive" | "dead";
+  /** The ad campaign this agent runs, and what it chose to spend. Null before it starts. */
+  adCampaignId: string | null;
+  adCampaignStatus: "active" | "paused" | "ended" | null;
+  budgetScale: number;
   strategy: string;
   /** What /buy/[tracking] keys off, so the dashboard can link to the storefront. */
   trackingId: string;
@@ -30,6 +34,16 @@ export type AgentView = {
   conversionRate: number;
 
   isChampion: boolean;
+  /** Everything this agent has published, newest last. Drives the creative gallery. */
+  creatives: Array<{
+    headline: string;
+    body: string;
+    cta: string;
+    imageRef: string | null;
+    source: "llm" | "template";
+    tick: number;
+    adCampaignId: string | null;
+  }>;
   txs: Array<{
     kind: string;
     hash: string | null;
@@ -100,6 +114,9 @@ export function toView(campaign: Campaign): CampaignView {
       generation: a.generation,
       parentId: a.parentId,
       status: a.status,
+      adCampaignId: a.adCampaignId,
+      adCampaignStatus: a.adCampaignStatus,
+      budgetScale: a.budgetScale,
       strategy: describe(a.genome),
       trackingId: a.trackingId,
       genome: a.genome,
@@ -114,6 +131,15 @@ export function toView(campaign: Campaign): CampaignView {
       clicks: a.clicks,
       conversions: a.conversions,
       conversionRate: conversionRateOf(a),
+      creatives: (a.creatives ?? []).map((c) => ({
+        headline: c.headline,
+        body: c.body,
+        cta: c.cta,
+        imageRef: c.imageRef,
+        source: c.source,
+        tick: c.tick,
+        adCampaignId: c.adCampaignId,
+      })),
       isChampion: champion?.id === a.id && profitOf(a) > 0,
       txs: a.txs.map((t) => ({
         kind: t.kind,

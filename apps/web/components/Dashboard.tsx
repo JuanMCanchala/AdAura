@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { LineageStrip } from "./LineageStrip";
 import { PopulationTable } from "./PopulationTable";
+import { CreativeGallery } from "./CreativeGallery";
 import { PitchStage } from "./PitchStage";
 import { ProofPanel } from "./ProofPanel";
 import { DEATH_REASONS, type CampaignView, money, percent } from "@/lib/view";
@@ -299,6 +300,8 @@ export function Dashboard() {
         context={campaign.productContext}
         image={campaign.productImage}
       />
+
+      <CreativeGallery campaign={campaign} productImage={campaign.productImage} />
 
       <ProofPanel chain={chain} campaign={campaign} onDone={refresh} />
 

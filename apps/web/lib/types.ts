@@ -30,8 +30,26 @@ export type Creative = {
    * when a speech synthesiser reads it: no line breaks, no lists, no em dashes.
    */
   spoken: string;
+  /**
+   * The product photo that ships with this publication.
+   *
+   * An asset, not an input: no model ever looks at it. The agent decides what to say from
+   * the written brief and its own strategy, and the picture rides along with the post the
+   * way it would on a real ad. Keeping it out of the prompt is also what makes a local
+   * model usable — an image is roughly a thousand prompt tokens, the text is a few hundred.
+   */
+  imageRef: string | null;
   /** Whether a model wrote this or it came from the deterministic fallback. */
   source: "llm" | "template";
+  /** Which tick this publication was written on, so a gallery can order them. */
+  tick: number;
+  /**
+   * The campaign this creative was published under, when the agent had one.
+   *
+   * Kept on the creative rather than looked up later: an agent can outlive several
+   * campaigns, and a publication belongs to the one that was running when it was written.
+   */
+  adCampaignId: string | null;
 };
 
 /** How an agent sounds. Derived from its genome so the voice matches the strategy. */
@@ -68,9 +86,34 @@ export type Agent = {
   deathReason: DeathReason | null;
 
   creative: Creative | null;
+  /**
+   * Everything this agent has published, newest last.
+   *
+   * An agent that rewrites its pitch after a bad generation should be able to show both,
+   * which is the visible proof that it adapts rather than repeats. Capped, because a long
+   * run would otherwise grow the snapshot without bound.
+   */
+  creatives: Creative[];
   trackingId: string;
   txs: TxRef[];
+
+  /**
+   * The ad campaign this agent is running, as the network identifies it.
+   *
+   * Null until the agent decides to advertise. Stored exactly as a real network's id would
+   * be, so nothing upstream cares whether it came from the simulator or from Adsterra.
+   */
+  adCampaignId: string | null;
+  adCampaignStatus: AdCampaignStatus | null;
+  /**
+   * What the agent chose to spend per tick, as a multiple of its genome's natural rate.
+   * Raised when it is making money, cut when it is not — the agent's own lever.
+   */
+  budgetScale: number;
 };
+
+/** Mirrors the ad platform's campaign states, kept here so the view layer can read it. */
+export type AdCampaignStatus = "active" | "paused" | "ended";
 
 export type FitnessWeights = {
   /** Weight on raw profit — the default MVP fitness is profit alone. */
