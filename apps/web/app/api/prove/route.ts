@@ -18,7 +18,9 @@ import {
 } from "@/lib/x402";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+// Vercel's Hobby plan caps a function at 60s; asking for more fails the deploy. Six round
+// trips to a testnet fit well inside that, and locally there is no limit either way.
+export const maxDuration = 60;
 
 /**
  * Take one agent all the way through the real thing, on a real chain:
@@ -244,10 +246,31 @@ export async function POST(request: Request) {
       steps,
     });
   } catch (e) {
-    steps.push({ step: "Stopped", detail: (e as Error).message, ok: false });
+    steps.push({ step: "Stopped", detail: failureReason(e), ok: false });
     persist();
     return NextResponse.json({ agentId: agent.id, steps }, { status: 500 });
   }
+}
+
+/**
+ * One readable line for the panel.
+ *
+ * viem's errors carry the whole request — ABI, args, docs link — which is what you want in a
+ * log and not what you want on a projector. A revert still reports its custom error, because
+ * that is the sentence the demo is trying to land.
+ */
+function failureReason(e: unknown): string {
+  const message = (e as Error)?.message ?? String(e);
+  const reverted = revertReason(e);
+  if (reverted !== message.split("\n")[0]) return reverted;
+
+  if (/fetch failed|ECONNREFUSED|ETIMEDOUT|socket hang up|HTTP request failed/i.test(message)) {
+    return "The RPC node did not answer. Check RPC_URL and that the network is up.";
+  }
+  if (/insufficient funds/i.test(message)) {
+    return "The operator wallet is out of native gas on this network.";
+  }
+  return message.split("\n")[0];
 }
 
 /** Pull the custom error name out of a viem revert, which is what a judge wants to read. */
