@@ -62,9 +62,12 @@ export async function POST(request: Request) {
       priceUsd: Number(body.product.priceUsd ?? 49),
       margin: Number(body.product.margin ?? 0.6),
       category: String(body.product.category ?? "general"),
-      audienceHint: body.product.audienceHint
-        ? String(body.product.audienceHint)
-        : undefined,
+      // The wizard's free-text box lands here: it is what the agents read before pitching,
+      // and the market already uses it as a hint about who wants this.
+      audienceHint:
+        (body.context ? String(body.context) : "") ||
+        (body.product.audienceHint ? String(body.product.audienceHint) : "") ||
+        undefined,
     },
     images: Array.isArray(body.images)
       ? body.images.slice(0, 8).map(String)

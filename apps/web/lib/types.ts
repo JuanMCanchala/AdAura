@@ -24,8 +24,24 @@ export type Creative = {
   headline: string;
   body: string;
   cta: string;
+  /**
+   * The pitch as the agent says it out loud — one or two sentences of plain speech.
+   * Written separately from `body` because text that reads well on a page sounds stilted
+   * when a speech synthesiser reads it: no line breaks, no lists, no em dashes.
+   */
+  spoken: string;
   /** Whether a model wrote this or it came from the deterministic fallback. */
   source: "llm" | "template";
+};
+
+/** How an agent sounds. Derived from its genome so the voice matches the strategy. */
+export type Voice = {
+  /** 0.5–2. Urgent strategies talk faster, educational ones slower. */
+  rate: number;
+  /** 0–2. Separates the agents from each other by ear. */
+  pitch: number;
+  /** Preferred BCP-47 tag; the browser picks the nearest installed voice. */
+  lang: string;
 };
 
 export type Agent = {

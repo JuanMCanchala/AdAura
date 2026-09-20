@@ -11,6 +11,7 @@
     "abi": "tsx scripts/abi.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.127.0",
     "next": "15.5.25",
     "react": "19.1.1",
     "react-dom": "19.1.1",

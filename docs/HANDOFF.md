@@ -115,6 +115,14 @@ si alguien vuelve a poner `nextWalletIndex: 0` en `startCampaign`, ese test se p
 
 ## Dónde están los huecos declarados
 
-- `lib/creative.ts` no existe todavía. El tipo `Creative` está en `lib/types.ts` y el campo `creative` de cada agente es `null`. Si se conecta un LLM, va ahí, y el fallback de plantilla tiene que seguir funcionando sin API key.
+- ~~`lib/creative.ts` no existe~~ — **ya existe**. Cada agente escribe su propio pitch a
+  partir del genoma, la descripción y la foto del producto, y el navegador lo dice en voz
+  alta (`components/PitchStage.tsx`, `app/api/pitch`).
+
+  Dos cosas que conviene no romper: **sin `ANTHROPIC_API_KEY` la demo sigue funcionando**
+  (cae al fallback de plantillas, que igual da un pitch distinto por genoma), y la voz es la
+  del navegador (Web Speech API), no un servicio — no cuesta, no necesita key y no se puede
+  caer en vivo. `voiceFor()` deriva tono y velocidad del genoma para que dos estrategias
+  distintas suenen distinto.
 - No hay cruce entre estrategias, solo mutación (`lib/genome.ts`, función `mutate`).
 - `Market.peek()` devuelve `null`; se dejó como gancho para un "¿cuál era la respuesta?" post-demo. El dato real lo calcula `bruteForceBest`.

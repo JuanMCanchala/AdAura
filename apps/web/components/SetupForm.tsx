@@ -29,6 +29,25 @@ export function SetupForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [product, setProduct] = useState(EXAMPLES[0]);
+  // The photo rides along as a data: URL so it can be posted as JSON and shown as a preview.
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  /** Read the file into a data: URL. 4 MB keeps the request well under the API's limit. */
+  function onPhoto(event: React.ChangeEvent<HTMLInputElement>) {
+    setPhotoError(null);
+    const file = event.target.files?.[0];
+    if (!file) return setPhoto(null);
+    if (file.size > 4_000_000) {
+      setPhotoError("That photo is over 4 MB. Use a smaller one.");
+      event.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPhoto(String(reader.result));
+    reader.onerror = () => setPhotoError("Could not read that file.");
+    reader.readAsDataURL(file);
+  }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -52,6 +71,8 @@ export function SetupForm() {
         budgetUsd,
         populationSize,
         seed: form.get("seed") ? Number(form.get("seed")) : undefined,
+        context: form.get("context") ?? "",
+        images: photo ? [photo] : [],
       }),
     });
 
@@ -192,6 +213,53 @@ export function SetupForm() {
               />
             </Field>
           </Row>
+
+          <Field
+            label="What are you selling?"
+            hint="A sentence or two in your own words. The agents read this before they pitch."
+          >
+            <textarea
+              name="context"
+              rows={3}
+              placeholder="Single-origin beans from Nariño, roasted last week. Tastes like panela and orange."
+              style={{ width: "100%", font: "inherit", padding: "0.5rem" }}
+            />
+          </Field>
+
+          <Field
+            label="Photo of the product"
+            hint="Optional. The agents look at it and use what they see."
+          >
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              onChange={onPhoto}
+            />
+          </Field>
+          {photoError && (
+            <p style={{ color: "var(--loss, #b4462f)" }}>{photoError}</p>
+          )}
+          {photo && (
+            <div style={{ marginTop: "0.5rem" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo}
+                alt="The product the agents will pitch"
+                style={{
+                  maxHeight: 160,
+                  borderRadius: 4,
+                  border: "1px solid var(--rule, #d9d2c5)",
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setPhoto(null)}
+                style={{ display: "block", marginTop: "0.4rem", fontSize: "0.8rem" }}
+              >
+                Remove photo
+              </button>
+            </div>
+          )}
         </fieldset>
 
         <fieldset

@@ -42,6 +42,10 @@ export type AgentView = {
 export type CampaignView = {
   id: string;
   productName: string;
+  /** What the seller wrote about the product; the agents read it before they pitch. */
+  productContext: string;
+  /** First uploaded photo, as a data: URL, or null. */
+  productImage: string | null;
   priceUsd: number;
   tick: number;
   generation: number;
@@ -71,6 +75,8 @@ export function toView(campaign: Campaign): CampaignView {
   return {
     id: campaign.id,
     productName: campaign.product.name,
+    productContext: campaign.product.audienceHint ?? "",
+    productImage: campaign.images[0] ?? null,
     priceUsd: campaign.product.priceUsd,
     tick: campaign.tick,
     generation: campaign.generation,

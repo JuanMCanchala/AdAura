@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { LineageStrip } from "./LineageStrip";
 import { PopulationTable } from "./PopulationTable";
+import { PitchStage } from "./PitchStage";
 import { ProofPanel } from "./ProofPanel";
 import { DEATH_REASONS, type CampaignView, money, percent } from "@/lib/view";
 
@@ -291,6 +292,12 @@ export function Dashboard() {
             }),
           )
         }
+      />
+
+      <PitchStage
+        campaign={campaign}
+        context={campaign.productContext}
+        image={campaign.productImage}
       />
 
       <ProofPanel chain={chain} campaign={campaign} onDone={refresh} />
