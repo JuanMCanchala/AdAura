@@ -49,10 +49,19 @@ El humano conserva siempre el interruptor: `setPaused()` congela a toda la pobla
 | Componente | Estado |
 | --- | --- |
 | `AgentTreasury.sol` + `MockUSD.sol` | listo — 17/17 tests |
-| Motor evolutivo (genoma, mercado, selección) | listo — 20/20 tests, converge en 5 seeds |
+| Motor evolutivo (genoma, mercado, selección) | listo — 74/74 tests, converge en 5 seeds |
 | Dashboard, wizard y storefront | listo |
-| Integración on-chain (wallet por agente) | probado contra un nodo local; falta desplegar en HashKey |
-| Pagos agente→servicio vía x402 / MPP | ciclo completo verificado contra un nodo local; falta la testnet |
+| Integración on-chain (wallet por agente) | **desplegado y corriendo en HashKey testnet** — el agente firma su propio `spend()` |
+| Pagos agente→servicio vía x402 / MPP | **verificado en HashKey testnet** — 402, pago firmado, y el sobregiro revertido por el contrato |
+
+**En vivo, HashKey Chain Testnet (chainId 133):**
+
+| | |
+| --- | --- |
+| `AgentTreasury` | [`0x87017Fdeb14140043dfE323a48e26c4be0169bE4`](https://testnet-explorer.hskchain.net/address/0x87017Fdeb14140043dfE323a48e26c4be0169bE4) |
+| `MockUSD` | [`0x9b5d391F1fed4D4C18ae5ce221476d60a8C96b93`](https://testnet-explorer.hskchain.net/address/0x9b5d391F1fed4D4C18ae5ce221476d60a8C96b93) |
+
+Testnet a propósito: `MockUSD` tiene faucet abierta y el contrato no está auditado.
 
 Plan completo y ruta pendiente en [docs/PLAN.md](docs/PLAN.md). Para retomar desde otra sesión, [docs/HANDOFF.md](docs/HANDOFF.md).
 
