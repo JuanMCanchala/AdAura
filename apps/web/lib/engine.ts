@@ -18,6 +18,7 @@ import {
 import type { AdPlatform } from "./ads/types";
 import { type Rng, mulberry32 } from "./rng";
 import { describe } from "./genome";
+import { templateCreative } from "./creative";
 import {
   decideBudgetScale,
   livingAgents,
@@ -54,7 +55,11 @@ export function createCampaign(input: CampaignInput): {
   const rng = mulberry32(seed);
 
   const campaign: Campaign = {
-    id: `camp_${seed.toString(36)}`,
+    // Seed plus a launch marker. A pinned DEMO_SCENARIO means every campaign draws the same
+    // seed, so the seed alone would give two consecutive demo runs the same id — and since
+    // agent ids are scoped to the campaign, the second run's agents would collide with the
+    // first's. The suffix keeps runs distinct without touching what the seed decides.
+    id: `camp_${seed.toString(36)}_${Date.now().toString(36).slice(-4)}`,
     createdAt: new Date().toISOString(),
     product: input.product,
     images: input.images ?? [],
@@ -86,6 +91,23 @@ export function createCampaign(input: CampaignInput): {
   };
 
   campaign.agents = seedPopulation(campaign, input.populationSize, rng);
+
+  // Every founder arrives with an ad, so the gallery has something to show the moment the
+  // population launches. Written from the template: no API call, no latency, and the copy
+  // and artwork already differ per genome. A richer version is written if the operator
+  // runs the pitch-off.
+  for (const agent of campaign.agents) {
+    const first = templateCreative(
+      agent.genome,
+      campaign.product,
+      campaign.product.audienceHint ?? "",
+      campaign.images[0] ?? null,
+      0,
+      null,
+    );
+    agent.creative = first;
+    agent.creatives = [first];
+  }
   for (const a of campaign.agents) {
     log(
       campaign,
@@ -334,6 +356,28 @@ export async function tick(
         "birth",
         child.id,
         `${child.label} born from ${parent?.label ?? child.parentId} — mutated ${child.mutatedGenes.join(", ") || "nothing"}`,
+      );
+
+      // A child that inherited a mutated genome must not inherit the parent's ad: the whole
+      // point of the generation boundary is that a new strategy produces a new publication.
+      // Written from the template here — synchronously, off the deterministic path, and
+      // with no API call, so a generation boundary never stalls the simulation. A richer
+      // version is written later if the operator runs the pitch-off.
+      const born = templateCreative(
+        child.genome,
+        campaign.product,
+        campaign.product.audienceHint ?? "",
+        campaign.images[0] ?? null,
+        report.tick,
+        null,
+      );
+      child.creative = born;
+      child.creatives = [born];
+      log(
+        campaign,
+        "birth",
+        child.id,
+        `${child.label} published its first ad — ${describe(child.genome)}`,
       );
     }
 

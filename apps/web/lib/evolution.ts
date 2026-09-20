@@ -252,11 +252,27 @@ export function newAgent(
     allowanceMicro: Micro;
   },
 ): Agent {
+  // The counter lives in module scope, and a dev-server hot reload resets it while the
+  // campaign survives in globalThis — which minted a second agent_001 mid-run and made two
+  // different agents indistinguishable to anything keyed on id or label. Generation is part
+  // of the id so a collision cannot happen however the module is reloaded.
+  // Scoped to the campaign, and to the generation within it.
+  //
+  // The counter alone is not enough twice over: it restarts with every campaign, so two
+  // campaigns would mint the same agent_001; and a dev-server hot reload resets it mid-run,
+  // which minted a second agent_001 inside one campaign. Both made two different agents
+  // indistinguishable to anything keyed on id — including the map that hands each agent its
+  // own ad copy. The campaign id and the generation close both holes.
   const n = ++counter;
-  const id = `agent_${String(n).padStart(3, "0")}`;
+  const suffix = String(n).padStart(3, "0");
+  const id =
+    init.generation > 0
+      ? `${campaign.id}_g${init.generation}_${suffix}`
+      : `${campaign.id}_${suffix}`;
   return {
     id,
-    label: labelFor(n),
+    label:
+      init.generation > 0 ? `${labelFor(n)}·g${init.generation}` : labelFor(n),
     address: null,
     generation: init.generation,
     parentId: init.parentId,
