@@ -105,9 +105,13 @@ si alguien vuelve a poner `nextWalletIndex: 0` en `startCampaign`, ese test se p
 
 ## Convenciones del repo
 
-- Commits y push con la cuenta personal **JuanMCanchala** (`Juan <canchalajuanmanuel@gmail.com>`, ya fijado en el config local del repo).
+- Commits y push con la cuenta **jucollas** (`jucollas <webflash@somosflash.com>`, ya fijado en el config local del repo). Los commits hasta `1a499f5` van como `Juan <canchalajuanmanuel@gmail.com>`, de cuando el repo vivía en la otra cuenta.
 - **Sin trailer `Co-Authored-By`.**
-- Repo privado: https://github.com/JuanMCanchala/darwin-agents
+- Repo público: https://github.com/jucollas/darwin-agents
+
+  Se movió desde `JuanMCanchala/darwin-agents` porque **Vercel solo deja conectar un repo
+  personal a su dueño**: un colaborador no puede, por más invitación que acepte. Sin eso la
+  integración de git nunca enlaza y no hay deploy automático.
 
 ## Dónde están los huecos declarados
 

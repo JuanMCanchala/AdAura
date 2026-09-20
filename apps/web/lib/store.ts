@@ -35,7 +35,17 @@ type Session = {
  */
 const WALLET_BLOCK = 256;
 
-const WALLET_CURSOR = resolve(process.cwd(), "data/wallet-cursor.json");
+/**
+ * Where the snapshot and cursor live.
+ *
+ * On Vercel `process.cwd()` is the read-only bundle, so a write there throws and the session
+ * only ever exists in the memory of whichever instance created it — a tick that lands on a
+ * different instance finds nothing and answers "No campaign yet". `/tmp` is the one writable
+ * path, and it is shared by every invocation on the same instance, so the snapshot survives.
+ */
+const DATA_DIR = process.env.VERCEL ? "/tmp/darwin" : resolve(process.cwd(), "data");
+
+const WALLET_CURSOR = resolve(DATA_DIR, "wallet-cursor.json");
 
 /**
  * The next free derivation block, persisted next to the snapshot.
@@ -71,7 +81,7 @@ function claimWalletBlock(): number {
   }
 }
 
-const SNAPSHOT = resolve(process.cwd(), "data/campaign.json");
+const SNAPSHOT = resolve(DATA_DIR, "campaign.json");
 
 declare global {
   var __darwinSession: Session | null | undefined;
