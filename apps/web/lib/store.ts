@@ -25,6 +25,45 @@ type Session = {
   nextWalletIndex: number;
 };
 
+/**
+ * Derivation indices are handed out in one block per campaign.
+ *
+ * AgentTreasury keys agents by address globally, not per campaign, so a second campaign that
+ * restarted numbering from 0 would re-derive the first campaign's wallets and revert with
+ * AgentExists(). Each campaign therefore starts at a fresh multiple of this stride, which
+ * also caps how many agents one campaign can register on chain.
+ */
+const WALLET_BLOCK = 256;
+
+const WALLET_CURSOR = resolve(process.cwd(), "data/wallet-cursor.json");
+
+/**
+ * The next free derivation block, persisted next to the snapshot.
+ *
+ * It has to outlive an individual campaign: ending one and starting another must not hand
+ * the new population the old addresses. On a read-only filesystem this falls back to a
+ * time-derived block, which is still collision-free in practice for a demo.
+ */
+function claimWalletBlock(): number {
+  let next = 0;
+  try {
+    next = JSON.parse(readFileSync(WALLET_CURSOR, "utf8"))?.nextBlock ?? 0;
+  } catch {
+    // No cursor yet — start at the first block.
+  }
+  if (!Number.isInteger(next) || next < 0) next = 0;
+
+  try {
+    mkdirSync(dirname(WALLET_CURSOR), { recursive: true });
+    writeFileSync(WALLET_CURSOR, JSON.stringify({ nextBlock: next + 1 }), "utf8");
+  } catch {
+    // Vercel: cannot persist the cursor, so derive a block that will not repeat.
+    return (Math.floor(Date.now() / 1000) % 4096) * WALLET_BLOCK;
+  }
+
+  return next * WALLET_BLOCK;
+}
+
 const SNAPSHOT = resolve(process.cwd(), "data/campaign.json");
 
 declare global {
@@ -57,7 +96,7 @@ export async function startCampaign(input: CampaignInput): Promise<Session> {
     rng: mulberry32(campaign.seed ^ 0x5eed),
     bridge: cfg ? new ChainBridge(cfg) : null,
     walletIndex: new Map(),
-    nextWalletIndex: 0,
+    nextWalletIndex: claimWalletBlock(),
   };
 
   for (const agent of campaign.agents) {
@@ -123,6 +162,9 @@ function restore(): Session | null {
 
     const campaign = parsed.campaign as Campaign;
     const cfg = configFromEnv();
+    const restoredIndices: number[] = (parsed.walletIndex ?? []).map(
+      (entry: [string, number]) => entry[1],
+    );
 
     return {
       campaign,
@@ -132,7 +174,11 @@ function restore(): Session | null {
       rng: mulberry32((campaign.seed ^ 0x5eed) + campaign.tick),
       bridge: cfg ? new ChainBridge(cfg) : null,
       walletIndex: new Map(parsed.walletIndex ?? []),
-      nextWalletIndex: parsed.nextWalletIndex ?? campaign.agents.length,
+      // Fall back to the high-water mark of the restored map, never to a bare agent count:
+      // that would restart numbering inside a block another campaign already used.
+      nextWalletIndex:
+        parsed.nextWalletIndex ??
+        Math.max(0, ...restoredIndices, -1) + 1,
     };
   } catch {
     return null;
