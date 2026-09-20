@@ -41,9 +41,15 @@ const WALLET_CURSOR = resolve(process.cwd(), "data/wallet-cursor.json");
  * The next free derivation block, persisted next to the snapshot.
  *
  * It has to outlive an individual campaign: ending one and starting another must not hand
- * the new population the old addresses. On a read-only filesystem this falls back to a
- * time-derived block, which is still collision-free in practice for a demo.
+ * the new population the old addresses.
+ *
+ * When the cursor cannot be written — a serverless filesystem is read-only — the block is
+ * derived from a process-lifetime counter on top of a start-time offset. The counter is what
+ * guarantees two campaigns never collide; a bare timestamp does not, because two campaigns
+ * created within the same tick of the clock would round to the same block.
  */
+let blocksClaimedThisProcess = 0;
+
 function claimWalletBlock(): number {
   let next = 0;
   try {
@@ -56,12 +62,13 @@ function claimWalletBlock(): number {
   try {
     mkdirSync(dirname(WALLET_CURSOR), { recursive: true });
     writeFileSync(WALLET_CURSOR, JSON.stringify({ nextBlock: next + 1 }), "utf8");
+    return next * WALLET_BLOCK;
   } catch {
-    // Vercel: cannot persist the cursor, so derive a block that will not repeat.
-    return (Math.floor(Date.now() / 1000) % 4096) * WALLET_BLOCK;
+    // Read-only filesystem. Spread distinct process instances apart by start time, then step
+    // strictly forward within this one so repeated campaigns cannot land on the same block.
+    const processOffset = Math.floor(Date.now() / 1000) % 4096;
+    return (processOffset + blocksClaimedThisProcess++) * WALLET_BLOCK;
   }
-
-  return next * WALLET_BLOCK;
 }
 
 const SNAPSHOT = resolve(process.cwd(), "data/campaign.json");

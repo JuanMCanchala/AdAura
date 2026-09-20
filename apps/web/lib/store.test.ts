@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -65,5 +65,19 @@ describe("wallet derivation across campaigns", () => {
   it("keeps indices unique within a single campaign", async () => {
     const indices = await walletIndicesFor(44);
     expect(new Set(indices).size).toBe(indices.length);
+  });
+
+  it("still separates campaigns when the cursor cannot be written", async () => {
+    // Vercel's filesystem is read-only, so the cursor write throws and the fallback runs.
+    // A fallback derived only from the clock would hand two campaigns created in the same
+    // second the same block — the AgentExists() bug again, in the place we demo from.
+    chmodSync(dir, 0o555);
+    try {
+      const first = await walletIndicesFor(55);
+      const second = await walletIndicesFor(66);
+      expect(second.some((i) => first.includes(i))).toBe(false);
+    } finally {
+      chmodSync(dir, 0o755);
+    }
   });
 });
