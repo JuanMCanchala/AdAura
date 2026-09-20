@@ -57,7 +57,22 @@ Ojo con dos cosas que salieron de ahí:
 3. **Probar el botón "Run it on chain"** del dashboard contra HashKey. Los 6 pasos ya corren
    enteros contra Anvil (ver abajo), así que la lógica está verificada; lo que falta es la
    fricción que solo da una red de verdad: gas, nonces y timeouts del RPC.
-4. **Deploy a Vercel.** Root directory `apps/web`. Las variables de `.env` van como env vars del proyecto.
+4. **Deploy a Vercel.** Root directory `apps/web`. Las variables van como env vars del
+   proyecto — la lista completa y comentada está en `.env.example`.
+
+   La app **no necesita cadena para desplegarse**: sin `TREASURY_ADDRESS` / `TOKEN_ADDRESS`
+   el wizard, el dashboard, la evolución y el storefront funcionan igual, y el panel
+   "Prove it on chain" explica qué falta en vez de romperse. Así que se puede publicar la URL
+   antes de tener los contratos y llenar las direcciones después.
+
+   Dos cosas que ya están resueltas y conviene no deshacer:
+
+   - `apps/web/vercel.json` fija `maxDuration` de `/api/prove` en **60s**. El plan Hobby no
+     permite más y pedir 120 hace fallar el deploy.
+   - El filesystem de Vercel es de solo lectura, así que el cursor de wallets no se puede
+     persistir. El fallback reparte bloques con un contador de proceso, no con el reloj: dos
+     campañas creadas en el mismo segundo tendrían el mismo bloque y volvería el
+     `AgentExists()`. Hay test que lo cubre.
 5. **Video de 2–3 min** siguiendo el guion de la sección 7 de PLAN.md, y submission en Devfolio ("EAG Global Buildathon").
 
 ## Un bug que ya se arregló y conviene no volver a introducir
