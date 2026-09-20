@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
 import { activeScenario, resolveSeed } from "@/lib/ads/scenario";
-import { chainConfig, endCampaign, getSession, startCampaign } from "@/lib/store";
+import { generateCreatives, missingConfigHint } from "@/lib/creative";
+import {
+  chainConfig,
+  endCampaign,
+  getSession,
+  persist,
+  startCampaign,
+} from "@/lib/store";
 import { toView } from "@/lib/view";
 
 export const dynamic = "force-dynamic";
+// Launch now waits on one model call to write the founders' ads. Vercel's Hobby plan caps a
+// function at 60s and would otherwise cut it off at its 10s default, leaving the campaign
+// created but still holding template copy.
+export const maxDuration = 60;
 
 export async function GET() {
   const session = getSession();
@@ -111,9 +122,54 @@ export async function POST(request: Request) {
     },
   });
 
+  // Let the founders write their own ads before the dashboard opens.
+  //
+  // createCampaign() already gave each one a template ad so the population is never empty,
+  // but template copy is the weakest thing a juror can be shown first: five fixed sentences
+  // with the product name slotted in. One call replaces all of them with copy the model
+  // actually wrote for that genome. It costs the launch a few seconds and is the difference
+  // between "these agents write ads" being a claim and being visible.
+  //
+  // Failure is survivable by construction: the templates are already in place, so a missing
+  // key, a timeout or a bad response leaves the demo exactly as it was.
+  const alive = session.campaign.agents.filter((a) => a.status === "alive");
+  let copySource: "llm" | "template" = "template";
+  let copyNote: string | null = null;
+
+  try {
+    const creatives = await generateCreatives({
+      product: session.campaign.product,
+      context: session.campaign.product.audienceHint ?? "",
+      image: null,
+      imageRef: session.campaign.images[0] ?? null,
+      tick: 0,
+      agents: alive.map((a) => ({
+        id: a.id,
+        label: a.label,
+        genome: a.genome,
+      })),
+    });
+
+    for (const agent of alive) {
+      const written = creatives.get(agent.id);
+      if (!written) continue;
+      agent.creative = written;
+      agent.creatives = [written];
+      if (written.source === "llm") copySource = "llm";
+    }
+    if (copySource === "template") copyNote = missingConfigHint();
+    persist();
+  } catch (e) {
+    // The templates written at creation stay exactly where they are.
+    copyNote = (e as Error).message.split("\n")[0];
+  }
+
   return NextResponse.json({
     campaignId: session.campaign.id,
     agents: session.campaign.agents.length,
+    // So the UI can say plainly who wrote the ads it is about to show.
+    copySource,
+    copyNote,
   });
 }
 

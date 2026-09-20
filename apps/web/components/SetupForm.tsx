@@ -348,7 +348,7 @@ export function SetupForm() {
           style={{ marginTop: "1.75rem" }}
         >
           {submitting
-            ? "Creating the first generation…"
+            ? "The agents are writing their ads…"
             : "Launch autonomous agents"}
         </button>
       </form>
