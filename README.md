@@ -102,8 +102,36 @@ apps/web/
   lib/market.ts     simulador con verdad latente oculta, derivada del producto
   lib/evolution.ts  fitness, selección, mutación, reproducción, inmigración
   lib/engine.ts     el bucle: un tick = un día de mercado
+  lib/chain.ts      wallet HD por agente; cada uno firma su propio spend()
+  lib/creative.ts   el anuncio de cada agente: copy, CTA, arte, asset
+  lib/ai/           quién escribe el copy — Claude u Ollama, intercambiables
+  lib/ads/          la red publicitaria detrás de una interfaz (hoy, simulador local)
   scripts/sim.ts    verificación headless
 ```
+
+### El recorrido, de punta a punta
+
+```
+producto  →  6 agentes con genomas distintos
+                    ↓
+       Claude escribe un anuncio por genoma        ← real
+                    ↓
+       compran tráfico en el mercado simulado      ← simulado, la UI lo dice
+                    ↓
+       clics → storefront → venta atribuida
+                    ↓
+       profit y ROI reales → suben o bajan su presupuesto
+                    ↓
+       los que pierden pausan su campaña y mueren
+       los que ganan se reproducen con mutación
+                    ↓
+       "Prove it on chain" → transacción real en HashKey,
+       y el sobregiro lo rechaza el contrato             ← real, on-chain
+```
+
+**Lo que no existe:** login, publicación en redes reales, y hosting — la app
+corre en local. La entrega de anuncios es un simulador, y está etiquetado
+como tal en la propia interfaz.
 
 ## Licencia
 

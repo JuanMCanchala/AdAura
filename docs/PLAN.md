@@ -65,28 +65,52 @@ Y el **árbol evolutivo completo se reconstruye solo con los eventos** `AgentReg
 
 ## 4. Estado actual
 
-| Fase                   | Qué incluye                                               | Estado                                |
-| ---------------------- | --------------------------------------------------------- | ------------------------------------- |
-| 0 · Scaffold           | Monorepo, Foundry, Next 15, Tailwind 4                    | **listo**                             |
-| 1 · Contratos          | `AgentTreasury.sol`, `MockUSD.sol`, deploy script         | **listo — 17/17 tests**               |
-| 2 · Motor evolutivo    | genoma, mercado, selección, mutación, inmigración         | **listo — 20/20 tests**               |
-| 3 · Capa on-chain      | `chain.ts` con viem, wallet HD por agente, ABIs generados | **probado contra Anvil, sin desplegar en HashKey** |
-| 4 · x402 / MPP         | endpoint 402 real + verificación contra la cadena         | **probado de punta a punta contra Anvil** |
-| 5 · Dashboard          | linaje, economía, tabla, controles, log                   | **listo**                             |
-| 6 · Landing + tracking | wizard de campaña, storefront, conversión atribuida       | **listo**                             |
-| 7 · Entrega            | deploy, video, Devfolio                                   | **pendiente**                         |
+| Fase                   | Qué incluye                                               | Estado |
+| ---------------------- | --------------------------------------------------------- | ------ |
+| 0 · Scaffold           | Monorepo, Foundry, Next 15, Tailwind 4                    | **listo** |
+| 1 · Contratos          | `AgentTreasury.sol`, `MockUSD.sol`, deploy script         | **listo — 17/17 tests** |
+| 2 · Motor evolutivo    | genoma, mercado, selección, mutación, inmigración         | **listo — 74/74 tests** |
+| 3 · Capa on-chain      | wallet HD por agente, firma propia, x402                  | **desplegado y verificado en HashKey testnet** |
+| 4 · x402 / MPP         | endpoint 402 + verificación contra el recibo              | **verificado en HashKey testnet** |
+| 5 · Dashboard          | linaje, economía, tabla, controles, log, autoplay         | **listo** |
+| 6 · Landing + tracking | wizard, storefront, conversión atribuida                  | **listo** |
+| 7 · Creativos con IA   | Claude escribe el copy, arte SVG por genoma, galería      | **listo** |
+| 8 · Red publicitaria   | `AdPlatform` + simulador local, campañas por agente       | **listo — simulado a propósito** |
+| 9 · Entrega            | deploy a Vercel, video, Devfolio                          | **pendiente** |
 
-### Lo que falta, en orden
+### En vivo, HashKey Chain Testnet (chainId 133)
 
-1. **Fondear el deployer** en la faucet de HashKey testnet — `0xE99B67867E96833583ccadCFcF13499A10605544` en https://hskchain.net/faucet (tiene captcha, lo tiene que hacer una persona).
-2. **Desplegar** `MockUSD` + `AgentTreasury` en HashKey testnet (chainId 133) y llenar `TREASURY_ADDRESS` / `TOKEN_ADDRESS` en `.env`.
-3. **Probar el botón "Run it on chain"** de punta a punta contra la testnet. (De punta a punta contra Anvil ya pasa; ver HANDOFF.md.)
-4. **Deploy a Vercel** (root directory `apps/web`).
-5. **Video de 2–3 min** + submission en Devfolio.
+```
+Treasury   0x87017Fdeb14140043dfE323a48e26c4be0169bE4
+MockUSD    0x9b5d391F1fed4D4C18ae5ce221476d60a8C96b93
+RPC        https://testnet.hsk.xyz
+Explorer   https://testnet-explorer.hskchain.net
+```
 
-### Orden de sacrificio si el tiempo aprieta
+"Prove it on chain" corre los cinco pasos contra la testnet: 402, pago
+firmado por la wallet del propio agente, verificación contra el recibo,
+inventario entregado, y sobregiro rechazado con `EpochCapExceeded`.
+Comprobado aparte con `cast receipt`: el `from` es la wallet del agente.
 
-Primero cae el modo de fitness avanzado, luego los creativos generados con LLM, luego Sepolia (nos quedamos solo con HashKey). **Nunca** se sacrifican: el contrato con límites, el ciclo evolutivo y el árbol de linaje.
+**Hay que hacer clic dos veces** — la primera corrida registra al agente.
+
+### Lo que falta
+
+1. **Deploy a Vercel** (root directory `apps/web`). Ver HANDOFF.md: Next tiene
+   que ir en 15.5.25+ o Vercel rechaza el deploy por CVE.
+2. **Video de 2–3 min** + submission en Devfolio.
+
+### Qué es real y qué está simulado
+
+Esto va en el pitch, no se esconde:
+
+| | |
+| --- | --- |
+| Contrato, wallets, firma del agente, techo aplicado | **real, on-chain** |
+| Copy de los anuncios (Claude) | **real** |
+| Matemática de profit / ROI / selección | **real** |
+| Entrega de anuncios, clics, conversiones | **simulado** — la UI lo dice |
+| Login, hosting, publicación en redes | **no existe** |
 
 ---
 
@@ -108,6 +132,16 @@ apps/web/
   lib/x402.ts              protocolo 402: cotizar, cobrar, verificar contra la cadena
   lib/store.ts             sesión en memoria + snapshot en disco
   lib/view.ts              lo que ve el navegador (dólares, sin bigints)
+  lib/creative.ts          el anuncio de cada agente: copy, CTA, arte, asset
+  lib/ai/                  quién escribe el copy — Claude u Ollama, intercambiables
+    types.ts               la interfaz que cumple cualquier proveedor
+    anthropic.ts           Claude
+    ollama.ts              modelo local, para correr sin key ni red
+    visual.ts              la pieza gráfica: paleta del tono, composición del formato
+  lib/ads/                 la red publicitaria, detrás de una interfaz
+    types.ts               AdPlatform — lo que implementaría Adsterra el día que se conecte
+    mock.ts                simulador local: vende impresiones, devuelve clics uno a uno
+    scenario.ts            semillas con nombre, para que el pitch no dependa de la suerte
 
   app/page.tsx             wizard de campaña
   app/dashboard/           el tablero
@@ -118,6 +152,7 @@ apps/web/
   app/api/services/ads     el endpoint x402
   app/api/prove            el ciclo completo on-chain, para la demo
   app/api/convert          webhook de venta desde el storefront
+  app/api/pitch            los agentes reescriben su anuncio y lo dicen en voz alta
 
   scripts/sim.ts           la verificación headless
   scripts/abi.ts           copia los ABIs desde los artefactos de Foundry
@@ -158,13 +193,29 @@ Tres correcciones que salieron de esto y que valen para el pitch:
 
 ## 7. Lo que se le enseña al jurado, en orden
 
-1. **El wizard**: producto, precio, presupuesto. "Esto es todo lo que el usuario decide."
-2. **Dashboard, generación 0**: seis agentes, seis estrategias al azar, todos perdiendo plata.
-3. **Correr 20–30 días**: la tira de linaje se llena. Discos verdes que crecen, anillos sepia de los que murieron, líneas que unen hijo con padre.
-4. **La tabla**: quién está vivo, qué estrategia le funcionó, cuánto gastó y cuánto ganó. Señalar un hijo: "heredó de A04, le cambió el tono y el CTA".
-5. **"Prove it on chain"**: el agente pide inventario → 402 → paga desde su wallet → recibe el inventario → intenta gastar de más → **la cadena lo rechaza** (en pantalla sale `reverted with EpochCapExceeded`).
-6. **El explorer**: abrir la tesorería y mostrar los eventos. "El árbol que acaban de ver se reconstruye desde acá sin confiar en nosotros."
-7. **El número**: en el seed 99, la generación 0 rinde **−62%** y la generación 7 rinde **+433%**. El campeón coincide en 6 de 7 genes con el óptimo global que calculamos por fuerza bruta.
+1. **Preguntarle al público qué vender.** "Una bici eléctrica." Se escribe en el
+   wizard y se aprieta **Launch autonomous agents**. Tarda ~28 s: los agentes
+   están escribiendo sus anuncios.
+2. **La galería, antes de correr nada.** Seis anuncios distintos para el mismo
+   producto, escritos por Claude a partir del genoma de cada agente. Titulares
+   reales del ensayo: *"School Run Sorted — Before Prices Move"* (urgente, con
+   descuento), *"Engineered For The Vertical City"* (educativo), *"Folds Small.
+   Rides Big."* (aspiracional). Misma bici, seis formas de venderla.
+3. **▶ Run it live.** El reloj avanza solo mientras uno habla: nacen agentes,
+   mueren, entran ventas. No hay que hacer clic en nada.
+4. **Señalar a uno que pierde**: pausó su propia campaña al 75% de presupuesto.
+   Nadie se lo dijo — leyó sus propios números.
+5. **Ordenar la galería por Best ROI**: el campeón, con el presupuesto subido a
+   150%. Abrir su tarjeta: genoma → campaña → tracking → P&L completo.
+6. **"Prove it on chain"** (dos clics: el primero registra al agente). El agente
+   pide inventario → 402 → paga desde su wallet → recibe el inventario →
+   intenta gastar de más → **la cadena lo rechaza**, `EpochCapExceeded`.
+7. **El explorer**: abrir la transacción y mostrar que el `from` es la wallet del
+   agente, no la nuestra. "El techo no es una instrucción al modelo. Es una
+   transacción que revierte."
+8. **Decir qué está simulado.** La entrega de anuncios y los clics son un
+   simulador local. El contrato, las wallets, la firma y el límite son reales.
+   Decirlo suma; que lo descubra el jurado, resta.
 
 ---
 
