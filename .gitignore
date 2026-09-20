@@ -19,3 +19,6 @@ contracts/lib/
 # os
 Thumbs.db
 .DS_Store
+
+# vercel
+.vercel
