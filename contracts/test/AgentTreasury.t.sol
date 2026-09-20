@@ -130,6 +130,40 @@ contract AgentTreasuryTest is Test {
         assertEq(usd.balanceOf(address(treasury)), 108 * DOLLAR);
     }
 
+    function test_earnedRevenueBecomesSpendableBudget() public {
+        // $20 of seed money, all of it burned.
+        vm.prank(agentA);
+        treasury.spend(adNetwork, 10 * DOLLAR, "ads");
+        skip(EPOCH);
+        vm.prank(agentA);
+        treasury.spend(adNetwork, 10 * DOLLAR, "ads");
+        skip(EPOCH);
+        assertEq(treasury.spendableNow(agentA), 0, "seed money is gone");
+
+        // It sold $15 worth. A winning agent gets to compound instead of starving.
+        vm.prank(oracle);
+        treasury.recordRevenue(agentA, 15 * DOLLAR, "conv-1");
+        assertEq(treasury.spendableNow(agentA), 10 * DOLLAR, "still bounded by the epoch cap");
+
+        vm.prank(agentA);
+        treasury.spend(adNetwork, 10 * DOLLAR, "reinvested");
+        assertEq(treasury.profitOf(agentA), -int256(15 * DOLLAR));
+    }
+
+    function test_reinvestmentStillObeysTheGlobalCap() public {
+        vm.prank(human);
+        treasury.setGlobalCap(campaignId, 8 * DOLLAR);
+
+        vm.prank(oracle);
+        treasury.recordRevenue(agentA, 500 * DOLLAR, "whale");
+
+        // The agent is rich, but the human's ceiling on total spend is untouched.
+        assertEq(treasury.spendableNow(agentA), 8 * DOLLAR);
+        vm.prank(agentA);
+        vm.expectRevert(abi.encodeWithSelector(AgentTreasury.GlobalCapExceeded.selector, 9 * DOLLAR, 8 * DOLLAR));
+        treasury.spend(adNetwork, 9 * DOLLAR, "too much");
+    }
+
     function test_onlyOracleSettlesRevenue() public {
         vm.prank(human);
         vm.expectRevert(AgentTreasury.NotOracle.selector);

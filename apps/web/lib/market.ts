@@ -143,10 +143,14 @@ export function createMarket(product: ProductSpec, seed = 1337): Market {
     const m = strategyMultipliers(product, genome);
     const ctr = clamp(
       BASE_CTR[genome.platform] * m.ctrMultiplier,
-      0.0005,
-      0.12,
+      0.0008,
+      0.06,
     );
-    const cvr = clamp(BASE_CVR[genome.platform] * m.cvrMultiplier, 0.001, 0.22);
+    const cvr = clamp(
+      BASE_CVR[genome.platform] * CVR_SCALE * m.cvrMultiplier,
+      0.0008,
+      0.05,
+    );
     return { ctr, cvr };
   }
 

@@ -58,9 +58,16 @@ export function livingAgents(c: Campaign): Agent[] {
   return c.agents.filter(isAlive);
 }
 
-/** Budget this agent may still burn, ignoring the per-epoch ceiling. */
+/**
+ * Budget this agent may still burn, ignoring the per-epoch ceiling.
+ *
+ * An agent may re-spend what it earned. That is not a loophole: the campaign's global cap
+ * still binds the population, so the human's exposure never grows — but an agent that is
+ * genuinely selling gets to compound instead of starving the moment its seed money runs out.
+ * AgentTreasury.spend() applies exactly the same formula on chain.
+ */
 export function remainingAllowance(a: Agent): Micro {
-  return Math.max(0, a.allowanceMicro - a.spentMicro);
+  return Math.max(0, a.allowanceMicro + a.revenueMicro - a.spentMicro);
 }
 
 export type GenerationOutcome = {

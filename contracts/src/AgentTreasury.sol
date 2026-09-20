@@ -30,9 +30,9 @@ contract AgentTreasury {
 
     struct Agent {
         uint256 campaignId;
-        uint256 allowance; // lifetime ceiling for this agent
+        uint256 budget; // everything this agent may ever spend: its grant plus what it earned
         uint256 spent;
-        uint256 revenue;
+        uint256 revenue; // reported separately; already folded into `budget`
         uint256 epochCap; // ceiling per epoch
         uint256 spentThisEpoch;
         uint64 epoch; // last epoch touched
@@ -190,9 +190,9 @@ contract AgentTreasury {
         if (msg.sender != c.owner) revert NotOwner();
         if (c.paused) revert CampaignPaused();
 
-        uint256 remaining = p.allowance - p.spent;
+        uint256 remaining = p.budget - p.spent;
         if (allowance > remaining) revert AllowanceExceeded(allowance, remaining);
-        p.allowance -= allowance;
+        p.budget -= allowance;
 
         uint32 gen = p.generation + 1;
         _register(campaignId, child, parent, gen, allowance, epochCap, genomeHash);
@@ -215,7 +215,7 @@ contract AgentTreasury {
 
         agents[agent] = Agent({
             campaignId: campaignId,
-            allowance: allowance,
+            budget: allowance,
             spent: 0,
             revenue: 0,
             epochCap: epochCap,
@@ -239,7 +239,7 @@ contract AgentTreasury {
         if (msg.sender != campaigns[a.campaignId].owner) revert NotOwner();
 
         a.alive = false;
-        uint256 reclaimed = a.allowance - a.spent;
+        uint256 reclaimed = a.budget - a.spent;
         int256 profit = int256(a.revenue) - int256(a.spent);
         emit AgentKilled(a.campaignId, agent, profit, reclaimed);
     }
@@ -250,7 +250,7 @@ contract AgentTreasury {
         if (msg.sender != campaigns[a.campaignId].owner) revert NotOwner();
         if (allowance < a.spent) revert AllowanceExceeded(a.spent, allowance);
 
-        a.allowance = allowance;
+        a.budget = allowance;
         a.epochCap = epochCap;
         emit AllowanceAdjusted(a.campaignId, agent, allowance, epochCap);
     }
@@ -267,7 +267,7 @@ contract AgentTreasury {
         Campaign storage c = campaigns[a.campaignId];
         if (c.paused) revert CampaignPaused();
 
-        uint256 agentRemaining = a.allowance - a.spent;
+        uint256 agentRemaining = a.budget - a.spent;
         if (amount > agentRemaining) revert AllowanceExceeded(amount, agentRemaining);
 
         uint64 epoch = _currentEpoch(a.campaignId);
@@ -302,7 +302,10 @@ contract AgentTreasury {
         if (msg.sender != c.oracle) revert NotOracle();
 
         IERC20(c.token).transferFrom(msg.sender, address(this), amount);
+        // Earned money becomes spendable budget. The campaign's global cap still binds the
+        // population, so the human's exposure never grows — only the agent's room to compound.
         a.revenue += amount;
+        a.budget += amount;
         c.revenue += amount;
 
         emit RevenueRecorded(a.campaignId, agent, amount, conversionId);
@@ -333,7 +336,7 @@ contract AgentTreasury {
         Campaign storage c = campaigns[a.campaignId];
         if (c.paused) return 0;
 
-        uint256 limit = a.allowance - a.spent;
+        uint256 limit = a.budget - a.spent;
         uint256 epochUsed = _currentEpoch(a.campaignId) == a.epoch ? a.spentThisEpoch : 0;
         uint256 epochRemaining = a.epochCap - epochUsed;
         if (epochRemaining < limit) limit = epochRemaining;
