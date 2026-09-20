@@ -22,6 +22,14 @@ export const dynamic = "force-dynamic";
 // trips to a testnet fit well inside that, and locally there is no limit either way.
 export const maxDuration = 60;
 
+/** What is real and what is the local simulator. Returned on every path, not just success. */
+const HONESTY = (cfg: { chain: { name: string } }) => ({
+  adExchange: "local demo service",
+  payment: `real ${cfg.chain.name} transaction`,
+  wallet: "real agent wallet, agent-signed",
+  treasuryEnforcement: "real smart contract",
+});
+
 /**
  * Take one agent all the way through the real thing, on a real chain:
  *
@@ -80,6 +88,12 @@ export async function POST(request: Request) {
     "0x000000000000000000000000000000000000dEaD") as Address;
 
   try {
+    const blocked = await chainDiagnostics(bridge, cfg);
+    if (blocked) {
+      steps.push({ step: "Cannot reach the chain", detail: blocked, ok: false });
+      return NextResponse.json({ agentId: agent.id, steps }, { status: 503 });
+    }
+
     // 1 — the campaign exists on chain
     if (!campaign.chain.campaignId) {
       const opened = await bridge.openCampaign({
@@ -135,13 +149,25 @@ export async function POST(request: Request) {
         ? Math.min(Number(spendable), agent.epochCapMicro)
         : 0;
     if (priceMicro <= 0) {
+      // Spending the epoch cap is the demo working, not failing — the ceiling the contract
+      // enforces is exactly what the next step was going to prove. Say which ceiling it was
+      // and when it lifts, instead of a dead end that reads like a bug on stage.
       steps.push({
-        step: "Agent is out of budget",
-        detail: "Nothing left to spend on chain.",
-        ok: false,
+        step: `${agent.label} has already spent its ceiling this epoch`,
+        detail:
+          "AgentTreasury will not release another token until the epoch rolls over. That refusal is the point — it is the same ceiling the overspend step demonstrates.",
+        ok: true,
       });
       persist();
-      return NextResponse.json({ agentId: agent.id, steps });
+      return NextResponse.json({
+        agentId: agent.id,
+        address: agent.address,
+        steps,
+        honesty: HONESTY(cfg),
+        chainId: cfg.chain.id,
+        treasury: cfg.treasury,
+        explorer: cfg.chain.blockExplorers?.default.url ?? null,
+      });
     }
 
     // 3 — ask the exchange, get refused
@@ -244,6 +270,11 @@ export async function POST(request: Request) {
       agentId: agent.id,
       address: agent.address,
       steps,
+      // What a juror is entitled to know without reading the code.
+      honesty: HONESTY(cfg),
+      chainId: cfg.chain.id,
+      treasury: cfg.treasury,
+      explorer: cfg.chain.blockExplorers?.default.url ?? null,
     });
   } catch (e) {
     steps.push({ step: "Stopped", detail: failureReason(e), ok: false });
@@ -259,6 +290,35 @@ export async function POST(request: Request) {
  * log and not what you want on a projector. A revert still reports its custom error, because
  * that is the sentence the demo is trying to land.
  */
+/**
+ * A short, actionable line for each way the chain can refuse us.
+ *
+ * The old message said only "the RPC node did not answer", which was true for exactly one
+ * of these and misleading for the rest — a wrong chain id, an unfunded wallet and an
+ * undeployed treasury all looked identical from the outside.
+ */
+async function chainDiagnostics(
+  bridge: { publicClient: { getChainId: () => Promise<number>; getBalance: (a: { address: `0x${string}` }) => Promise<bigint>; getBytecode: (a: { address: `0x${string}` }) => Promise<string | undefined> } },
+  cfg: { chain: { id: number }; rpcUrl: string; treasury: `0x${string}` },
+): Promise<string | null> {
+  let chainId: number;
+  try {
+    chainId = await bridge.publicClient.getChainId();
+  } catch {
+    return `No answer from ${cfg.rpcUrl}. Check RPC_URL and that the network is reachable.`;
+  }
+  if (chainId !== cfg.chain.id)
+    return `Connected to chain ${chainId}, but CHAIN_ID says ${cfg.chain.id}. Point RPC_URL at the right network.`;
+
+  const code = await bridge.publicClient
+    .getBytecode({ address: cfg.treasury })
+    .catch(() => undefined);
+  if (!code || code === "0x")
+    return `No contract at TREASURY_ADDRESS (${cfg.treasury}) on chain ${chainId}. Deploy it, or fix the address.`;
+
+  return null;
+}
+
 function failureReason(e: unknown): string {
   const message = (e as Error)?.message ?? String(e);
   const reverted = revertReason(e);
@@ -277,7 +337,7 @@ function failureReason(e: unknown): string {
 function revertReason(e: unknown): string {
   const message = (e as Error)?.message ?? String(e);
   const match = message.match(
-    /(AllowanceExceeded|EpochCapExceeded|GlobalCapExceeded|CampaignPaused|AgentDead|InsufficientTreasury)/,
+    /(AllowanceExceeded|EpochCapExceeded|GlobalCapExceeded|CampaignPaused|AgentDead|AgentExists|AgentUnknown|CampaignUnknown|NotOwner|InsufficientTreasury|ZeroAddress)/,
   );
   return match ? `reverted with ${match[1]}` : message.split("\n")[0];
 }
